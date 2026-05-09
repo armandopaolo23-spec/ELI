@@ -1,0 +1,864 @@
+﻿# ============================================================
+# pc_control.py — Control del PC para Eli (con Spotify API)
+# Recibe nombre de comando + parámetros desde Ollama vía JSON.
+# ============================================================
+
+import subprocess
+import webbrowser
+import pyautogui
+import psutil
+import datetime
+import os
+import urllib.parse
+import threading
+import requests
+import shutil
+import glob
+
+
+# --- Importar control de Spotify ---
+# Usamos try/except porque si spotipy no está instalado o las
+# credenciales no están configuradas, Eli sigue funcionando
+# para todo lo demás. Solo los comandos de Spotify fallarían.
+try:
+    import spotify_control
+    SPOTIFY_DISPONIBLE = True
+except Exception as error:
+    SPOTIFY_DISPONIBLE = False
+    print(f"⚠️ Spotify no disponible: {error}")
+    print("   Los demás comandos funcionan con normalidad.\n")
+    
+try:
+    import google_calendar
+    CALENDAR_DISPONIBLE = True
+except Exception as error:
+    CALENDAR_DISPONIBLE = False
+    print(f"⚠️ Google Calendar no disponible: {error}")
+
+
+# --- Temporizador ---
+_temporizador_activo = None
+_funcion_hablar = None
+
+
+def configurar_voz(funcion_hablar):
+    global _funcion_hablar
+    _funcion_hablar = funcion_hablar
+
+
+def ejecutar_comando(nombre, parametros):
+    """
+    Ejecuta un comando del PC por su nombre.
+
+    Args:
+        nombre (str): Nombre del comando desde Ollama.
+        parametros (dict): Parámetros extraídos por Ollama.
+
+    Retorna:
+        str: Texto para que Eli diga, o None si el comando no existe.
+    """
+    funcion = DISPATCH.get(nombre)
+    if funcion is None:
+        return None
+    return funcion(parametros)
+
+
+def _calendar_check():
+    """Verifica que google_calendar esté disponible."""
+    if not CALENDAR_DISPONIBLE:
+        return "Google Calendar no está configurado. Revisa credentials.json."
+    return None
+
+
+def _calendario_hoy(params):
+    """Eventos de hoy."""
+    error = _calendar_check()
+    if error:
+        return error
+    return google_calendar.ver_eventos_hoy()
+
+
+def _calendario_manana(params):
+    """Eventos de mañana."""
+    error = _calendar_check()
+    if error:
+        return error
+    return google_calendar.ver_eventos_manana()
+
+
+def _calendario_semana(params):
+    """Eventos de los próximos 7 días."""
+    error = _calendar_check()
+    if error:
+        return error
+    dias = params.get("dias", 7)
+    try:
+        dias = int(dias)
+    except (ValueError, TypeError):
+        dias = 7
+    return google_calendar.proximos_eventos(dias)
+
+
+def _crear_evento_calendario(params):
+    """
+    Crea un evento. Ollama envía:
+    {
+        "titulo": "Reunión con cliente",
+        "fecha": "2025-07-15",
+        "hora": "15:00",
+        "duracion": 60
+    }
+    """
+    error = _calendar_check()
+    if error:
+        return error
+
+    titulo = params.get("titulo", "")
+    fecha = params.get("fecha", "")
+    hora = params.get("hora", "")
+    duracion = params.get("duracion", 60)
+
+    if not titulo:
+        return "¿Cómo se llama el evento?"
+    if not fecha:
+        return "¿Qué día es el evento? Necesito la fecha."
+    if not hora:
+        return "¿A qué hora es el evento?"
+
+    try:
+        duracion = int(duracion)
+    except (ValueError, TypeError):
+        duracion = 60
+
+    return google_calendar.crear_evento(titulo, fecha, hora, duracion)
+
+
+def _buscar_evento_calendario(params):
+    """
+    Busca eventos por nombre.
+    Ollama envía: {"busqueda": "reunión"}
+    """
+    error = _calendar_check()
+    if error:
+        return error
+
+    busqueda = params.get("busqueda", "")
+    if not busqueda:
+        return "¿Qué evento quieres buscar?"
+
+    return google_calendar.buscar_evento(busqueda)
+
+
+
+# ============================================================
+# ABRIR PROGRAMAS
+# ============================================================
+
+def _abrir_chrome(params):
+    os.system("start chrome")
+    return "Abriendo Chrome."
+
+def _abrir_notepad(params):
+    os.system("notepad")
+    return "Abriendo el bloc de notas."
+
+def _abrir_calculadora(params):
+    os.system("calc")
+    return "Abriendo la calculadora."
+
+def _abrir_explorador(params):
+    os.system("explorer")
+    return "Abriendo el explorador de archivos."
+
+def _abrir_configuracion(params):
+    os.system("start ms-settings:")
+    return "Abriendo la configuración."
+
+def _abrir_word(params):
+    os.system("start winword")
+    return "Abriendo Word."
+
+def _abrir_excel(params):
+    os.system("start excel")
+    return "Abriendo Excel."
+
+def _abrir_powerpoint(params):
+    os.system("start powerpnt")
+    return "Abriendo PowerPoint."
+
+def _abrir_spotify(params):
+    import time
+    os.system(r'start "" "C:\Users\Lenovo\OneDrive\Desktop\Spotify.lnk"')
+    time.sleep(3)  # Esperar 3 segundos a que Spotify inicie
+    return "Abriendo Spotify. Dame un momento para que cargue."
+
+
+# ============================================================
+# VOLUMEN DEL SISTEMA
+# ============================================================
+
+def _subir_volumen(params):
+    for _ in range(5):
+        pyautogui.press("volumeup")
+    return "Volumen subido."
+
+def _bajar_volumen(params):
+    for _ in range(5):
+        pyautogui.press("volumedown")
+    return "Volumen bajado."
+
+def _silenciar(params):
+    pyautogui.press("volumemute")
+    return "Audio silenciado."
+
+def _volumen_especifico(params):
+    porcentaje = params.get("porcentaje", 50)
+    try:
+        porcentaje = int(porcentaje)
+    except (ValueError, TypeError):
+        porcentaje = 50
+    porcentaje = max(0, min(100, porcentaje))
+    for _ in range(50):
+        pyautogui.press("volumedown")
+    for _ in range(porcentaje // 2):
+        pyautogui.press("volumeup")
+    return f"Volumen del sistema al {porcentaje}%."
+
+
+# ============================================================
+# SPOTIFY (API oficial)
+# Estas funciones son wrappers que llaman a spotify_control.py.
+# Cada una verifica primero si Spotify está disponible.
+# ============================================================
+
+def _spotify_check():
+    """Verifica que spotify_control esté importado correctamente."""
+    if not SPOTIFY_DISPONIBLE:
+        return "Spotify no está configurado. Revisa las credenciales en spotify_control.py."
+    return None  # None = todo bien, seguir adelante.
+
+def _spotify_play(params):
+    """Reanudar reproducción."""
+    error = _spotify_check()
+    if error:
+        return error
+    return spotify_control.play()
+
+def _spotify_pause(params):
+    """Pausar reproducción."""
+    error = _spotify_check()
+    if error:
+        return error
+    return spotify_control.pause()
+
+def _spotify_siguiente(params):
+    """Siguiente canción."""
+    error = _spotify_check()
+    if error:
+        return error
+    return spotify_control.siguiente()
+
+def _spotify_anterior(params):
+    """Canción anterior."""
+    error = _spotify_check()
+    if error:
+        return error
+    return spotify_control.anterior()
+
+def _spotify_volumen(params):
+    """
+    Cambia el volumen de Spotify (no del sistema).
+    Ollama envía: {"porcentaje": 70}
+    """
+    error = _spotify_check()
+    if error:
+        return error
+    porcentaje = params.get("porcentaje", 50)
+    return spotify_control.volumen(porcentaje)
+
+def _spotify_que_suena(params):
+    """Dice qué canción está sonando."""
+    error = _spotify_check()
+    if error:
+        return error
+    return spotify_control.que_suena()
+
+def _spotify_buscar(params):
+    """
+    Busca y reproduce una canción en Spotify.
+    Ollama envía: {"busqueda": "Blinding Lights"}
+    """
+    error = _spotify_check()
+    if error:
+        return error
+    busqueda = params.get("busqueda", "")
+    if not busqueda:
+        return "No entendí qué canción quieres escuchar."
+    return spotify_control.buscar_y_reproducir(busqueda)
+
+
+def _spotify_playlist(params):
+    busqueda = params.get("busqueda", "")
+    if not busqueda:
+        return "¿Qué playlist quieres reproducir?"
+    return spotify_control.buscar_y_reproducir_playlist(busqueda)
+
+
+# ============================================================
+# PANTALLA
+# ============================================================
+
+def _captura_pantalla(params):
+    escritorio = os.path.join(os.path.expanduser("~"), "Desktop")
+    ahora = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    ruta = os.path.join(escritorio, f"captura_{ahora}.png")
+    pyautogui.screenshot(ruta)
+    return "Captura guardada en el escritorio."
+
+def _bloquear_pantalla(params):
+    subprocess.Popen("rundll32.exe user32.dll,LockWorkStation", shell=True)
+    return "Bloqueando la pantalla."
+
+
+# ============================================================
+# FECHA, HORA, CLIMA
+# ============================================================
+
+def _decir_hora(params):
+    ahora = datetime.datetime.now()
+    return f"Son las {ahora.strftime('%I:%M %p')}."
+
+def _decir_fecha(params):
+    ahora = datetime.datetime.now()
+    dias = ["lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo"]
+    meses = [
+        "enero", "febrero", "marzo", "abril", "mayo", "junio",
+        "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"
+    ]
+    return (
+        f"Hoy es {dias[ahora.weekday()]} {ahora.day} "
+        f"de {meses[ahora.month - 1]} de {ahora.year}."
+    )
+
+def _consultar_clima(params):
+    ciudad = params.get("ciudad", "")
+    if not ciudad:
+        return "No entendí de qué ciudad quieres saber el clima."
+    try:
+        url = (
+            f"https://wttr.in/{urllib.parse.quote(ciudad)}"
+            f"?format=%C,+%t,+humedad+%h,+viento+%w&lang=es"
+        )
+        resp = requests.get(url, timeout=5)
+        if resp.status_code == 200 and "Unknown" not in resp.text:
+            return f"El clima en {ciudad}: {resp.text.strip()}."
+        return f"No encontré información del clima para {ciudad}."
+    except requests.ConnectionError:
+        return "No pude consultar el clima. Verifica tu conexión."
+    except Exception:
+        return "Hubo un error al consultar el clima."
+
+
+# ============================================================
+# BATERÍA Y SISTEMA
+# ============================================================
+
+def _bateria(params):
+    bateria = psutil.sensors_battery()
+    if bateria is None:
+        return "No detecté una batería."
+    porcentaje = int(bateria.percent)
+    cargando = " y cargando" if bateria.power_plugged else ""
+    return f"La batería está al {porcentaje}%{cargando}."
+
+def _apagar_pc(params):
+    subprocess.Popen("shutdown /s /t 60", shell=True)
+    return "La computadora se apagará en 60 segundos. Di cancelar apagado para detenerlo."
+
+def _cancelar_apagado(params):
+    subprocess.Popen("shutdown /a", shell=True)
+    return "Apagado cancelado."
+
+def _vaciar_papelera(params):
+    subprocess.Popen(
+        'powershell -Command "Clear-RecycleBin -Force -ErrorAction SilentlyContinue"',
+        shell=True
+    )
+    return "Papelera vaciada."
+
+def _modo_oscuro(params):
+    ruta_reg = r"HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\Themes\Personalize"
+    try:
+        resultado = subprocess.run(
+            f'reg query "{ruta_reg}" /v AppsUseLightTheme',
+            shell=True, capture_output=True, text=True
+        )
+        es_oscuro = "0x0" in resultado.stdout
+        nuevo = "1" if es_oscuro else "0"
+        modo = "claro" if es_oscuro else "oscuro"
+        for clave in ["AppsUseLightTheme", "SystemUsesLightTheme"]:
+            subprocess.run(
+                f'reg add "{ruta_reg}" /v {clave} /t REG_DWORD /d {nuevo} /f',
+                shell=True, capture_output=True
+            )
+        return f"Modo {modo} activado."
+    except Exception:
+        return "No pude cambiar el tema de Windows."
+
+
+# ============================================================
+# TEMPORIZADOR
+# ============================================================
+
+def _poner_temporizador(params):
+    global _temporizador_activo
+    cantidad = params.get("cantidad", 0)
+    unidad = params.get("unidad", "minutos").lower()
+    try:
+        cantidad = int(cantidad)
+    except (ValueError, TypeError):
+        return "No entendí la cantidad del temporizador."
+    if cantidad <= 0:
+        return "La cantidad debe ser mayor a cero."
+    if "segundo" in unidad:
+        segundos = cantidad
+    elif "hora" in unidad:
+        segundos = cantidad * 3600
+    else:
+        segundos = cantidad * 60
+    unidad_limpia = unidad.rstrip("s")
+    texto_tiempo = f"{cantidad} {unidad_limpia}" + ("s" if cantidad != 1 else "")
+    if _temporizador_activo and _temporizador_activo.is_alive():
+        _temporizador_activo.cancel()
+    _temporizador_activo = threading.Timer(
+        segundos, _temporizador_terminado, args=[texto_tiempo]
+    )
+    _temporizador_activo.daemon = True
+    _temporizador_activo.start()
+    return f"Temporizador de {texto_tiempo} iniciado."
+
+def _cancelar_temporizador(params):
+    global _temporizador_activo
+    if _temporizador_activo and _temporizador_activo.is_alive():
+        _temporizador_activo.cancel()
+        _temporizador_activo = None
+        return "Temporizador cancelado."
+    return "No hay ningún temporizador activo."
+
+def _temporizador_terminado(texto_tiempo):
+    mensaje = f"¡Tiempo! El temporizador de {texto_tiempo} ha terminado."
+    print(f"\n⏰ {mensaje}")
+    if _funcion_hablar:
+        _funcion_hablar(mensaje)
+
+
+# ============================================================
+# BÚSQUEDAS WEB
+# ============================================================
+
+def _buscar_google(params):
+    busqueda = params.get("busqueda", "")
+    if not busqueda:
+        return "No entendí qué quieres buscar."
+    webbrowser.open(f"https://www.google.com/search?q={urllib.parse.quote(busqueda)}")
+    return f"Buscando {busqueda} en Google."
+
+def _abrir_youtube(params):
+    webbrowser.open("https://www.youtube.com")
+    return "Abriendo YouTube."
+
+def _buscar_youtube(params):
+    busqueda = params.get("busqueda", "")
+    if not busqueda:
+        return "No entendí qué quieres buscar."
+    webbrowser.open(
+        f"https://www.youtube.com/results?search_query={urllib.parse.quote(busqueda)}"
+    )
+    return f"Buscando {busqueda} en YouTube."
+
+# ============================================================
+# ABRIR PROGRAMAS DE INGENIERÍA
+# ============================================================
+# Estrategia: primero intentamos shutil.which() que busca el
+# ejecutable en el PATH del sistema. Si no lo encuentra, probamos
+# rutas comunes donde se instalan estos programas.
+# Si ninguna funciona, avisamos al usuario.
+
+# Rutas conocidas donde se instalan los programas.
+# Cada programa tiene una lista de rutas posibles porque
+# las versiones cambian la carpeta (2024, 2025, etc.).
+# glob permite usar comodines (*) para cubrir varias versiones.
+
+RUTAS_AUTOCAD = [
+    r"C:\Program Files\Autodesk\AutoCAD*\acad.exe",
+]
+
+RUTAS_CIVIL3D = [
+    r"C:\Program Files\Autodesk\AutoCAD*\acad.exe",
+    # Civil 3D comparte el ejecutable de AutoCAD pero con perfil diferente.
+    # En la práctica, se abre igual que AutoCAD si Civil 3D está instalado.
+]
+
+RUTAS_QGIS = [
+    r"C:\Program Files\QGIS*\bin\qgis-bin.exe",
+    r"C:\Program Files\QGIS*\bin\qgis.bat",
+    r"C:\OSGeo4W\bin\qgis.bat",
+]
+
+RUTAS_ARCGIS = [
+    r"C:\Program Files\ArcGIS\Pro\bin\ArcGISPro.exe",
+    r"C:\Program Files (x86)\ArcGIS\Desktop*\bin\ArcMap.exe",
+]
+
+
+def _buscar_ejecutable(nombre_comando, rutas_conocidas):
+    """
+    Busca un ejecutable: primero en el PATH, luego en rutas conocidas.
+
+    shutil.which() busca en todas las carpetas del PATH del sistema.
+    Si el programa se agregó al PATH durante la instalación, lo encuentra.
+    Si no, probamos rutas comunes con glob (que acepta comodines *).
+
+    Args:
+        nombre_comando (str): Nombre del ejecutable (ej: "acad").
+        rutas_conocidas (list): Lista de rutas con comodines.
+
+    Retorna:
+        str: Ruta completa al ejecutable, o None si no lo encontró.
+    """
+    import shutil
+    import glob
+
+    # Intento 1: buscar en el PATH del sistema.
+    ruta = shutil.which(nombre_comando)
+    if ruta:
+        return ruta
+
+    # Intento 2: buscar en rutas conocidas con comodines.
+    # glob.glob() expande "C:\Program Files\QGIS*\bin\qgis-bin.exe"
+    # a todas las carpetas que coincidan (QGIS 3.34, QGIS 3.36, etc.).
+    for patron in rutas_conocidas:
+        resultados = glob.glob(patron)
+        if resultados:
+            # Tomar el más reciente (último alfabéticamente = versión más nueva).
+            resultados.sort()
+            return resultados[-1]
+
+    return None
+
+
+def _abrir_autocad(params):
+    """Abre AutoCAD buscando el ejecutable automáticamente."""
+    ruta = _buscar_ejecutable("acad", RUTAS_AUTOCAD)
+    if ruta:
+        subprocess.Popen([ruta])
+        return "Abriendo AutoCAD."
+    return "No encontré AutoCAD instalado. Verifica la instalación."
+
+
+def _abrir_civil3d(params):
+    """
+    Abre Civil 3D.
+    Civil 3D se instala como un perfil de AutoCAD. El ejecutable
+    es el mismo (acad.exe) pero con un perfil distinto.
+    Si Civil 3D está instalado, busca su acceso directo primero.
+    """
+    # Intentar el acceso directo del menú inicio primero.
+    resultado = os.system('start "" "Civil 3D"')
+    if resultado == 0:
+        return "Abriendo Civil 3D."
+
+    # Fallback: abrir AutoCAD (Civil 3D es AutoCAD con extensiones).
+    ruta = _buscar_ejecutable("acad", RUTAS_CIVIL3D)
+    if ruta:
+        subprocess.Popen([ruta])
+        return "Abriendo AutoCAD con Civil 3D."
+    return "No encontré Civil 3D instalado. Verifica la instalación."
+
+
+def _abrir_qgis(params):
+    """Abre QGIS buscando el ejecutable automáticamente."""
+    ruta = _buscar_ejecutable("qgis", RUTAS_QGIS)
+    if ruta:
+        subprocess.Popen([ruta])
+        return "Abriendo QGIS."
+
+    # Fallback: intentar por el menú inicio.
+    resultado = os.system('start "" "QGIS"')
+    if resultado == 0:
+        return "Abriendo QGIS."
+    return "No encontré QGIS instalado. Verifica la instalación."
+
+
+def _abrir_arcgis(params):
+    """Abre ArcGIS Pro buscando el ejecutable automáticamente."""
+    ruta = _buscar_ejecutable("ArcGISPro", RUTAS_ARCGIS)
+    if ruta:
+        subprocess.Popen([ruta])
+        return "Abriendo ArcGIS."
+
+    resultado = os.system('start "" "ArcGIS Pro"')
+    if resultado == 0:
+        return "Abriendo ArcGIS Pro."
+    return "No encontré ArcGIS instalado. Verifica la instalación."
+
+
+# ============================================================
+# MANEJO DE ARCHIVOS
+# ============================================================
+
+# Carpeta de proyectos predefinida.
+# Cámbiala a donde tengas tus proyectos de ingeniería.
+CARPETA_PROYECTOS = r"C:\Users\Lenovo\OneDrive\Desktop\Carpeta proyectos"
+
+
+def _abrir_carpeta_proyectos(params):
+    """Abre la carpeta de proyectos en el explorador."""
+    carpeta = params.get("carpeta", CARPETA_PROYECTOS)
+
+    if os.path.exists(carpeta):
+        os.startfile(carpeta)
+        return f"Abriendo carpeta de proyectos."
+
+    # Si no existe, la creamos y la abrimos.
+    try:
+        os.makedirs(carpeta, exist_ok=True)
+        os.startfile(carpeta)
+        return f"Creé y abrí la carpeta de proyectos."
+    except OSError:
+        return "No pude abrir la carpeta de proyectos."
+
+
+def _abrir_en_carpeta(params):
+    """
+    Abre el explorador en una carpeta específica.
+    Ollama envía: {"carpeta": "documentos"} o {"carpeta": "descargas"}
+    """
+    destino = params.get("carpeta", "documentos").lower()
+
+    # Mapa de nombres comunes a rutas reales.
+    # os.path.expanduser("~") da "C:\Users\Lenovo".
+    home = os.path.expanduser("~")
+    carpetas = {
+        "documentos": os.path.join(home, "Documents"),
+        "descargas": os.path.join(home, "Downloads"),
+        "escritorio": os.path.join(home, "Desktop"),
+        "imágenes": os.path.join(home, "Pictures"),
+        "imagenes": os.path.join(home, "Pictures"),
+        "videos": os.path.join(home, "Videos"),
+        "música": os.path.join(home, "Music"),
+        "musica": os.path.join(home, "Music"),
+        "proyectos": CARPETA_PROYECTOS,
+    }
+
+    ruta = carpetas.get(destino)
+
+    if ruta and os.path.exists(ruta):
+        os.startfile(ruta)
+        return f"Abriendo la carpeta de {destino}."
+
+    # Si no es un nombre conocido, intentar como ruta directa.
+    if os.path.exists(destino):
+        os.startfile(destino)
+        return f"Abriendo {destino}."
+
+    return f"No encontré la carpeta '{destino}'."
+
+
+def _buscar_archivos(params):
+    """
+    Busca archivos por extensión en la carpeta de proyectos.
+    Ollama envía: {"extension": "dwg"} o {"extension": "shp"}
+
+    Usa glob para buscar recursivamente (**) en la carpeta de proyectos.
+    Retorna cuántos encontró y los primeros 5 nombres.
+    """
+    import glob
+
+    extension = params.get("extension", "").strip().lstrip(".")
+
+    if not extension:
+        return "¿Qué tipo de archivos quieres buscar? Dime la extensión, por ejemplo DWG o SHP."
+
+    # Buscar recursivamente en la carpeta de proyectos.
+    # ** significa "cualquier subcarpeta a cualquier nivel".
+    patron = os.path.join(CARPETA_PROYECTOS, "**", f"*.{extension}")
+    archivos = glob.glob(patron, recursive=True)
+
+    if not archivos:
+        return f"No encontré archivos .{extension} en la carpeta de proyectos."
+
+    # Mostrar los primeros 5 para no hacer la respuesta eterna.
+    total = len(archivos)
+    muestra = archivos[:5]
+    nombres = [os.path.basename(a) for a in muestra]
+    lista = ", ".join(nombres)
+
+    if total <= 5:
+        return f"Encontré {total} archivos .{extension}: {lista}."
+    else:
+        return f"Encontré {total} archivos .{extension}. Los primeros: {lista}."
+
+
+def _crear_carpeta(params):
+    """
+    Crea una nueva carpeta dentro de la carpeta de proyectos.
+    Ollama envía: {"nombre": "Proyecto Puente Norte"}
+    """
+    nombre = params.get("nombre", "").strip()
+
+    if not nombre:
+        return "¿Cómo quieres que se llame la carpeta?"
+
+    # Limpiar caracteres no válidos para nombres de carpeta en Windows.
+    # Windows no permite: \ / : * ? " < > |
+    caracteres_invalidos = r'\/:*?"<>|'
+    for c in caracteres_invalidos:
+        nombre = nombre.replace(c, "")
+
+    ruta = os.path.join(CARPETA_PROYECTOS, nombre)
+
+    if os.path.exists(ruta):
+        return f"La carpeta '{nombre}' ya existe."
+
+    try:
+        os.makedirs(ruta, exist_ok=True)
+        return f"Carpeta '{nombre}' creada en proyectos."
+    except OSError as error:
+        return f"No pude crear la carpeta: {error}"
+
+
+# ============================================================
+# UTILIDADES DE INGENIERÍA
+# ============================================================
+
+def _calculadora_cientifica(params):
+    """
+    Abre la calculadora de Windows en modo científico.
+
+    No hay un flag directo para modo científico, pero si la calculadora
+    ya se abrió en modo científico antes, Windows recuerda el modo.
+    Usamos un atajo: abrimos calc y luego enviamos Alt+2 que es el
+    shortcut de teclado para modo científico en la calc de Windows 10/11.
+    """
+    import time
+    subprocess.Popen("calc", shell=True)
+    time.sleep(1)  # Esperar a que la calculadora abra.
+    pyautogui.hotkey("alt", "2")  # Alt+2 = modo científico.
+    return "Abriendo calculadora científica."
+
+
+def _convertir_unidades(params):
+    """
+    Abre un conversor de unidades en el navegador.
+    Google tiene un conversor integrado que funciona perfecto.
+    """
+    tipo = params.get("tipo", "")
+    if tipo:
+        webbrowser.open(
+            f"https://www.google.com/search?q=convertir+{urllib.parse.quote(tipo)}"
+        )
+        return f"Abriendo conversor de {tipo}."
+    else:
+        webbrowser.open("https://www.google.com/search?q=conversor+de+unidades")
+        return "Abriendo conversor de unidades."
+
+# ============================================================
+# DISPATCH TABLE
+# ============================================================
+
+DISPATCH = {
+    # Abrir programas
+    "abrir_chrome":           _abrir_chrome,
+    "abrir_notepad":          _abrir_notepad,
+    "abrir_calculadora":      _abrir_calculadora,
+    "abrir_explorador":       _abrir_explorador,
+    "abrir_configuracion":    _abrir_configuracion,
+    "abrir_word":             _abrir_word,
+    "abrir_excel":            _abrir_excel,
+    "abrir_powerpoint":       _abrir_powerpoint,
+    "abrir_spotify":          _abrir_spotify,
+    "abrir_youtube":          _abrir_youtube,
+
+    # Volumen del sistema
+    "subir_volumen":          _subir_volumen,
+    "bajar_volumen":          _bajar_volumen,
+    "silenciar":              _silenciar,
+    "volumen_especifico":     _volumen_especifico,
+    
+
+    # Spotify (API oficial)
+    "spotify_play":           _spotify_play,
+    "spotify_pause":          _spotify_pause,
+    "spotify_siguiente":      _spotify_siguiente,
+    "spotify_anterior":       _spotify_anterior,
+    "spotify_volumen":        _spotify_volumen,
+    "spotify_que_suena":      _spotify_que_suena,
+    "spotify_reproducir":     _spotify_buscar,
+    "spotify_playlist":       _spotify_playlist,
+    "spotify_buscar":         _spotify_buscar,
+
+    # Pantalla
+    "captura_pantalla":       _captura_pantalla,
+    "bloquear_pantalla":      _bloquear_pantalla,
+
+    # Info
+    "dejar_hora":             _decir_hora,
+    "decir_hora_actual":      _decir_hora,
+    "consultar_clima":        _consultar_clima,
+    "bateria":                _bateria,
+    "decir_fecha":            _decir_fecha,
+
+    # Sistema
+    "poner_temporizador":     _poner_temporizador,
+    "cancelar_temporizador":  _cancelar_temporizador,
+    "vaciar_papelera":        _vaciar_papelera,
+    "modo_oscuro":            _modo_oscuro,
+    "apagar_pc":              _apagar_pc,
+    "cancelar_apagado":       _cancelar_apagado,
+
+    # Búsquedas
+    "buscar_google":          _buscar_google,
+    "buscar_youtube":         _buscar_youtube,
+
+    # Ingeniería — Programas
+    "abrir_autocad":          _abrir_autocad,
+    "abrir_civil3d":          _abrir_civil3d,
+    "abrir_qgis":             _abrir_qgis,
+    "abrir_arcgis":           _abrir_arcgis,
+
+    # Ingeniería — Archivos
+    "abrir_carpeta_proyectos": _abrir_carpeta_proyectos,
+    "abrir_en_carpeta":       _abrir_en_carpeta,
+    "buscar_archivos":        _buscar_archivos,
+    "crear_carpeta":          _crear_carpeta,
+
+    # Ingeniería — Utilidades
+    "calculadora_cientifica": _calculadora_cientifica,
+    "convertir_unidades":     _convertir_unidades,
+
+    # Google Calendar
+    "calendario_hoy":          _calendario_hoy,
+    "calendario_manana":       _calendario_manana,
+    "calendario_semana":       _calendario_semana,
+    "crear_evento_calendario": _crear_evento_calendario,
+    "buscar_evento_calendario": _buscar_evento_calendario,
+}
+
+
+# --- Prueba directa ---
+if __name__ == "__main__":
+    print("=== Prueba de comandos ===\n")
+
+    pruebas = [
+        ("spotify_que_suena", {}),
+        ("spotify_buscar", {"busqueda": "Bohemian Rhapsody"}),
+        ("spotify_volumen", {"porcentaje": 60}),
+        ("decir_hora", {}),
+        ("comando_falso", {}),
+    ]
+
+    for nombre, params in pruebas:
+        resultado = ejecutar_comando(nombre, params)
+        estado = resultado if resultado else "(comando no existe)"
+        print(f"  {nombre} → {estado}")

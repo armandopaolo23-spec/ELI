@@ -1,0 +1,16 @@
+{
+  "perfil": {
+    "horarios": "mañana",
+    "nombre": "eli"
+  },
+  "resumenes": [
+    {
+      "fecha": "2026-04-10 17:19",
+      "contenido": "Paolo es un usuario que se identificó y mencionó su interés por los boleros, luego Eli le ofrece reproducir canciones clásicas del género."
+    },
+    {
+      "fecha": "2026-04-10 17:36",
+      "contenido": "El usuario pidió reproducir una canción de rock y luego específicamente la canción \"ebrio de amor\". Eli respondió mostrándose insuficiente para realizar una recomendación precisa y solicitando más información sobre las preferencias musicales del usuario. Luego, el usuario reproduce la canción, ajusta el volumen y pregunta si puede saber la opinión de Eli. Finalmente, Eli busca una canción similar a \"ebrio de amor\"."
+    }
+  ]
+}

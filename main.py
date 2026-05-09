@@ -1,0 +1,285 @@
+# ============================================================
+# main.py — Eli optimizado
+#
+# OPTIMIZACIÓN: Inicio paralelo.
+# Antes: micrófono → memoria → modelo → saludo (secuencial, ~8 seg).
+# Ahora: micrófono + modelo se precargan EN PARALELO mientras
+#   la memoria se carga, reduciendo el inicio a ~4 seg.
+#
+# También agrega timing a cada paso para que puedas ver en
+# consola cuánto tarda cada etapa y diagnosticar cuellos de botella.
+# ============================================================
+
+import json
+import time
+import threading
+
+from wake_word import esperar_wake_word
+from escuchar import escuchar, calibrar_una_vez, _q
+from cerebro import pensar, limpiar_historial, inicializar, generar_resumen_sesion, precarga_modelo
+from hablar import hablar
+from pc_control import ejecutar_comando, configurar_voz, _consultar_clima
+from interfaz import InterfazEli
+from rutinas import (
+    ejecutar_saludo,
+    ejecutar_rutina,
+    crear_rutina_por_voz,
+    listar_rutinas,
+    eliminar_rutina,
+    SchedulerRutinas
+)
+
+TIMEOUT_INACTIVIDAD = 600
+MAX_FALLOS_CONSECUTIVOS = 3
+DELAY_ENTRE_COMANDOS = 1.5
+
+COMANDOS_DORMIR = (
+    "descansa", "eli descansa", "duerme", "eli duerme",
+    "modo espera", "a dormir", "eli a dormir"
+)
+
+COMANDOS_APAGAR = (
+    "apagar eli", "apágate eli", "adiós eli", "cierra eli"
+)
+
+PREFIJOS_CREAR_RUTINA = (
+    "crea rutina", "crear rutina", "nueva rutina",
+    "crea una rutina", "crear una rutina",
+    "agrega rutina", "agregar rutina"
+)
+
+PREFIJOS_EJECUTAR_RUTINA = (
+    "ejecuta rutina", "ejecutar rutina", "pon rutina",
+    "activa rutina", "activar rutina", "lanza rutina"
+)
+
+PREFIJOS_ELIMINAR_RUTINA = (
+    "elimina rutina", "eliminar rutina", "borra rutina", "borrar rutina"
+)
+
+FRASES_LISTAR_RUTINAS = (
+    "mis rutinas", "lista rutinas", "listar rutinas",
+    "qué rutinas tengo", "que rutinas tengo", "muestra rutinas"
+)
+
+
+def _manejar_rutinas(texto, gui):
+    """Verifica si el texto es un comando de rutinas."""
+    for prefijo in PREFIJOS_CREAR_RUTINA:
+        if texto.startswith(prefijo):
+            gui.cambiar_estado("pensando")
+            gui.mostrar_sistema("Creando rutina...")
+            return crear_rutina_por_voz(texto, pensar)
+
+    for prefijo in PREFIJOS_EJECUTAR_RUTINA:
+        if texto.startswith(prefijo):
+            nombre = texto.replace(prefijo, "").strip()
+            if not nombre:
+                return "¿Qué rutina quieres ejecutar?"
+            gui.cambiar_estado("pensando")
+            gui.mostrar_sistema(f"Ejecutando rutina {nombre}...")
+            return ejecutar_rutina(nombre, ejecutar_comando, hablar)
+
+    for prefijo in PREFIJOS_ELIMINAR_RUTINA:
+        if texto.startswith(prefijo):
+            nombre = texto.replace(prefijo, "").strip()
+            if not nombre:
+                return "¿Qué rutina quieres eliminar?"
+            return eliminar_rutina(nombre)
+
+    for frase in FRASES_LISTAR_RUTINAS:
+        if frase in texto:
+            return listar_rutinas()
+
+    return None
+
+
+def _procesar_resultados(resultados, gui):
+    """Ejecuta una lista de comandos/respuestas en secuencia."""
+    total = len(resultados)
+
+    for i, resultado in enumerate(resultados):
+        comando = resultado.get("comando", "ninguno")
+        parametros = resultado.get("parametros", {})
+
+        if comando != "ninguno":
+            respuesta = ejecutar_comando(comando, parametros)
+            if respuesta:
+                gui.cambiar_estado("hablando")
+                gui.mostrar_eli(respuesta)
+                print(f"🤖 Eli: {respuesta}")
+                hablar(respuesta)
+            else:
+                gui.cambiar_estado("hablando")
+                aviso = "Entendí lo que quieres pero no tengo ese comando."
+                gui.mostrar_eli(aviso)
+                hablar(aviso)
+        else:
+            respuesta = resultado.get("respuesta", "No supe qué decir.")
+            gui.cambiar_estado("hablando")
+            gui.mostrar_eli(respuesta)
+            print(f"🤖 Eli: {respuesta}")
+            hablar(respuesta)
+
+        if i < total - 1:
+            time.sleep(DELAY_ENTRE_COMANDOS)
+
+
+def main():
+    t_inicio_total = time.time()
+
+    gui = InterfazEli()
+    gui.iniciar()
+    configurar_voz(hablar)
+
+    # --- INICIO PARALELO ---
+    # El micrófono y el modelo de Ollama se precargan en hilos
+    # separados mientras cargamos la memoria en el hilo principal.
+    # Esto ahorra ~3-4 segundos en el arranque.
+
+    gui.mostrar_sistema("Iniciando sistemas en paralelo...")
+
+    # Hilo 1: calibrar micrófono (~0.6 seg).
+    hilo_mic = threading.Thread(target=calibrar_una_vez)
+    hilo_mic.start()
+
+    # Hilo 2: precargar modelo en GPU (~3-5 seg).
+    hilo_modelo = threading.Thread(target=precarga_modelo)
+    hilo_modelo.start()
+
+    # Hilo principal: cargar memoria + construir prompt (~0.1 seg).
+    inicializar()
+
+    # Esperar a que los hilos terminen.
+    hilo_mic.join()
+    hilo_modelo.join()
+
+    t_init = time.time() - t_inicio_total
+    print(f"⚡ Inicialización completa en {t_init:.1f}s")
+
+    # --- SALUDO ---
+    gui.cambiar_estado("hablando")
+    gui.mostrar_sistema("Eli iniciado")
+    ejecutar_saludo(hablar, pensar, _consultar_clima)
+    hablar("Di Eli cuando me necesites.")
+
+    # --- SCHEDULER ---
+    scheduler = SchedulerRutinas(ejecutar_comando, hablar)
+    scheduler.iniciar()
+
+    # --- BUCLE PRINCIPAL ---
+    while gui.corriendo:
+
+        gui.cambiar_estado("espera")
+        gui.mostrar_sistema("Modo espera — di 'Eli' para activar")
+
+        detectado = esperar_wake_word()
+        if not detectado:
+            break
+
+        gui.cambiar_estado("hablando")
+        gui.mostrar_sistema("¡Modo activo!")
+        hablar("Dime")
+
+        time.sleep(0.5)
+        while not _q.empty():
+            _q.get()
+
+        fallos_consecutivos = 0
+        ultima_interaccion = time.time()
+        activo = True
+
+        while activo and gui.corriendo:
+
+            segundos_inactivo = time.time() - ultima_interaccion
+            if segundos_inactivo >= TIMEOUT_INACTIVIDAD:
+                gui.cambiar_estado("hablando")
+                gui.mostrar_sistema("Timeout — volviendo a espera")
+                hablar("Llevo un rato sin escucharte. Estaré en espera.")
+                break
+
+            gui.cambiar_estado("escuchando")
+
+            # --- Timing: escuchar ---
+            t0 = time.time()
+            texto = escuchar()
+            t_escuchar = time.time() - t0
+
+            if not texto:
+                fallos_consecutivos += 1
+                if fallos_consecutivos >= MAX_FALLOS_CONSECUTIVOS:
+                    gui.cambiar_estado("hablando")
+                    gui.mostrar_sistema(
+                        f"{MAX_FALLOS_CONSECUTIVOS} fallos — volviendo a espera"
+                    )
+                    hablar("No te escucho. Estaré en espera si me necesitas.")
+                    break
+                gui.mostrar_sistema(
+                    f"No entendí ({fallos_consecutivos}/{MAX_FALLOS_CONSECUTIVOS})"
+                )
+                continue
+
+            fallos_consecutivos = 0
+            ultima_interaccion = time.time()
+            gui.mostrar_usuario(texto)
+            print(f'🎤 Tú: "{texto}" (escucha: {t_escuchar:.2f}s)')
+
+            # ¿Dormir?
+            if texto.startswith(COMANDOS_DORMIR):
+                gui.cambiar_estado("hablando")
+                gui.mostrar_eli("Entendido, estaré en espera.")
+                hablar("Entendido, estaré en espera.")
+                break
+
+            # ¿Apagar?
+            if any(texto.startswith(cmd) for cmd in COMANDOS_APAGAR):
+                gui.cambiar_estado("hablando")
+                gui.mostrar_eli("Hasta pronto. Apagando sistemas.")
+                hablar("Hasta pronto. Apagando sistemas.")
+                activo = False
+                continue
+
+            # ¿Rutinas?
+            respuesta_rutina = _manejar_rutinas(texto, gui)
+            if respuesta_rutina is not None:
+                gui.cambiar_estado("hablando")
+                gui.mostrar_eli(respuesta_rutina)
+                print(f"🤖 Eli: {respuesta_rutina}")
+                hablar(respuesta_rutina)
+                continue
+
+            # --- Timing: pensar ---
+            gui.cambiar_estado("pensando")
+            t0 = time.time()
+            resultados = pensar(texto)
+            t_pensar = time.time() - t0
+
+            print(f"   [JSON] {json.dumps(resultados, ensure_ascii=False)}")
+            print(f"   ⏱️ pensar: {t_pensar:.2f}s")
+
+            if len(resultados) > 1:
+                print(f"   📋 {len(resultados)} comandos en secuencia")
+
+            # --- Timing: hablar ---
+            t0 = time.time()
+            _procesar_resultados(resultados, gui)
+            t_hablar = time.time() - t0
+
+            print(f"   ⏱️ total turno: escuchar {t_escuchar:.2f}s "
+                  f"+ pensar {t_pensar:.2f}s + hablar {t_hablar:.2f}s "
+                  f"= {t_escuchar + t_pensar + t_hablar:.2f}s")
+
+        if not activo:
+            break
+
+    # --- Limpieza ---
+    scheduler.detener()
+    print("\n🧠 Guardando memoria de sesión...")
+    gui.mostrar_sistema("Guardando memoria...")
+    generar_resumen_sesion()
+    print("🧠 Memoria guardada.")
+    gui.detener()
+
+
+if __name__ == "__main__":
+    main()
