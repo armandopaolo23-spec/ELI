@@ -1,26 +1,21 @@
 # ============================================================
-# cerebro.py — El cerebro de Eli (optimizado con streaming)
+# cerebro.py — El cerebro de Eli (distribuido con fallback)
 #
-# ANTES: Ollama genera la respuesta COMPLETA y luego la envía.
-#   Para un JSON de 50 tokens, esperamos los 50 antes de actuar.
+# STREAMING: Ollama envía token por token. Retornamos en cuanto
+#   el JSON está completo (~200-500ms antes del "done" final).
 #
-# AHORA: Ollama envía token por token (streaming). Nosotros
-#   acumulamos los tokens e intentamos parsear el JSON después
-#   de cada uno. En cuanto tenemos un JSON completo, retornamos
-#   INMEDIATAMENTE sin esperar que el modelo termine.
+# PRECARGA: petición dummy al inicio para calentar el modelo en GPU.
 #
-# Ganancia: para comandos simples como {"comando": "decir_hora"},
-#   el modelo genera ~15 tokens. Con streaming, retornamos
-#   apenas el JSON cierra (token ~15) en vez de esperar a que
-#   Ollama confirme "done" (que puede tardar 200-500ms más).
-#
-# PRECARGA: al inicio, enviamos un mensaje dummy a Ollama para
-#   que cargue el modelo en GPU. La primera petición real ya
-#   no tiene el delay de carga (~3-5 segundos).
+# DISTRIBUIDO: dos nodos Ollama. PCN (local, qwen3:8b) para
+#   consultas complejas y PCV (remoto, qwen2.5:3b) como fallback
+#   24/7. Si PCN falla, el gestor conmuta a PCV automáticamente
+#   y verifica en background cada 60s si PCN volvió.
 # ============================================================
 
 import requests
 import json
+import threading
+import time
 
 from memoria import (
     cargar_memoria,
@@ -30,11 +25,95 @@ from memoria import (
     memoria_a_texto
 )
 
-# --- Configuración ---
+# ============================================================
+# GESTOR DE NODOS (multi-endpoint con fallback automático)
+# ============================================================
 
-URL_OLLAMA = "http://127.0.0.1:11434/api/chat"
-URL_GENERATE = "http://127.0.0.1:11434/api/generate"
-MODELO = "qwen3:8b"
+NODOS = [
+    {
+        "nombre": "PCN",
+        "url_chat":     "http://127.0.0.1:11434/api/chat",
+        "url_generate": "http://127.0.0.1:11434/api/generate",
+        "url_tags":     "http://127.0.0.1:11434/api/tags",
+        "modelo":       "qwen3:8b",
+    },
+    {
+        "nombre": "PCV",
+        "url_chat":     "http://192.168.100.30:11434/api/chat",
+        "url_generate": "http://192.168.100.30:11434/api/generate",
+        "url_tags":     "http://192.168.100.30:11434/api/tags",
+        "modelo":       "qwen2.5:3b",
+    },
+]
+
+_RECOVERY_INTERVAL = 60  # segundos entre intentos de recuperar el nodo primario
+
+
+class _GestorNodos:
+    """Gestiona la selección de nodo Ollama y el fallback automático."""
+
+    def __init__(self):
+        self._idx = 0          # índice del nodo activo
+        self._lock = threading.Lock()
+        self._hilo_recovery = None
+
+    # --- API pública ---
+
+    @property
+    def nodo(self):
+        with self._lock:
+            return NODOS[self._idx]
+
+    def marcar_fallo(self):
+        """Llamado cuando el nodo actual no responde. Intenta el siguiente."""
+        with self._lock:
+            anterior = self._idx
+            for delta in range(1, len(NODOS)):
+                candidato = (anterior + delta) % len(NODOS)
+                if self._ping(NODOS[candidato]):
+                    self._idx = candidato
+                    print(f"⚡ Nodo activo → {NODOS[candidato]['nombre']} "
+                          f"({NODOS[candidato]['modelo']})")
+                    self._iniciar_recovery_si_no_corre()
+                    return True
+            print("⚠️  Ningún nodo Ollama disponible.")
+            return False
+
+    def iniciar_recovery(self):
+        """Inicia el hilo de recuperación del nodo primario."""
+        self._iniciar_recovery_si_no_corre()
+
+    # --- Internos ---
+
+    def _ping(self, nodo, timeout=2):
+        try:
+            requests.get(nodo["url_tags"], timeout=timeout)
+            return True
+        except Exception:
+            return False
+
+    def _iniciar_recovery_si_no_corre(self):
+        if self._hilo_recovery and self._hilo_recovery.is_alive():
+            return
+        self._hilo_recovery = threading.Thread(
+            target=self._bucle_recovery, daemon=True
+        )
+        self._hilo_recovery.start()
+
+    def _bucle_recovery(self):
+        while True:
+            time.sleep(_RECOVERY_INTERVAL)
+            with self._lock:
+                if self._idx == 0:
+                    return  # ya estamos en primario, nada que recuperar
+                if self._ping(NODOS[0]):
+                    self._idx = 0
+                    print(f"✅ Nodo primario recuperado → {NODOS[0]['nombre']} "
+                          f"({NODOS[0]['modelo']})")
+                    return  # hilo termina; se relanzará si falla de nuevo
+
+
+_gestor = _GestorNodos()
 
 COMANDOS_DISPONIBLES = """
 COMANDOS DISPONIBLES (usa el nombre exacto en el campo "comando"):
@@ -89,6 +168,11 @@ COMANDOS DISPONIBLES (usa el nombre exacto en el campo "comando"):
 - crear_carpeta: Crear una nueva carpeta en proyectos. Parámetro: "nombre" (nombre de la carpeta)
 - calculadora_cientifica: Abrir la calculadora en modo científico
 - convertir_unidades: Abrir conversor de unidades. Parámetro opcional: "tipo" (metros a pies, km a millas, etc.)
+- gmail_no_leidos: Contar cuántos emails sin leer hay en Gmail
+- gmail_recientes: Leer los últimos emails no leídos. Parámetro opcional: "cantidad" (número, default 5)
+- gmail_importantes: Leer emails importantes o con estrella
+- gmail_buscar: Buscar emails por remitente o asunto. Parámetro: "busqueda" (texto, acepta sintaxis Gmail como "from:nombre")
+- gmail_enviar: Enviar un email. Parámetros: "destinatario" (email), "asunto" (texto), "cuerpo" (texto del mensaje)
 - ninguno: NO es un comando del sistema, es conversación normal
 """.strip()
 
@@ -133,6 +217,11 @@ Ejemplos:
   - "abre qgis" / "abre el gis" = abrir_qgis
   - "busca archivos dwg" = buscar_archivos
   - "convierte metros a pies" = convertir_unidades
+  - "cuántos emails tengo" / "emails sin leer" / "tengo correos" = gmail_no_leidos
+  - "léeme mis emails" / "qué emails tengo" / "mis correos" = gmail_recientes
+  - "hay algo importante en mi correo" / "emails importantes" = gmail_importantes
+  - "busca el email de mi profesor" / "busca correo de juan" = gmail_buscar
+  - "envía un email a juan@gmail.com diciendo que llego tarde" = gmail_enviar
 
 {COMANDOS}
 
@@ -167,40 +256,30 @@ _modelo_precargado = False
 # ============================================================
 
 def precarga_modelo():
-    """
-    Envía una petición mínima a Ollama para que cargue el modelo en GPU.
-
-    Sin precarga, la primera petición real tarda 3-8 segundos extra
-    porque Ollama tiene que cargar ~5GB de pesos del disco a la VRAM.
-    Con precarga, eso pasa al inicio (mientras Eli saluda) y las
-    peticiones posteriores arrancan en ~200ms.
-
-    Usamos /api/generate con keep_alive para mantener el modelo
-    en memoria sin generar una respuesta larga.
-    """
+    """Envía una petición mínima a cada nodo disponible para calentar los modelos en GPU."""
     global _modelo_precargado
 
     if _modelo_precargado:
         return
 
-    print("🔄 Precargando modelo en GPU...")
-    try:
-        # keep_alive="10m" mantiene el modelo en VRAM 10 minutos.
-        # El prompt vacío genera una respuesta mínima (~1 token).
-        requests.post(
-            URL_GENERATE,
-            json={
-                "model": MODELO,
-                "prompt": "hola",
-                "stream": False,
-                "options": {"num_predict": 1}  # Generar solo 1 token.
-            },
-            timeout=30
-        )
-        _modelo_precargado = True
-        print("✅ Modelo precargado en GPU.")
-    except Exception as error:
-        print(f"⚠️ No se pudo precargar el modelo: {error}")
+    for nodo in NODOS:
+        print(f"🔄 Precargando {nodo['nombre']} ({nodo['modelo']})...")
+        try:
+            requests.post(
+                nodo["url_generate"],
+                json={
+                    "model": nodo["modelo"],
+                    "prompt": "hola",
+                    "stream": False,
+                    "options": {"num_predict": 1},
+                },
+                timeout=30,
+            )
+            print(f"✅ {nodo['nombre']} listo.")
+        except Exception as error:
+            print(f"⚠️ {nodo['nombre']} no disponible en precarga: {error}")
+
+    _modelo_precargado = True
 
 
 # ============================================================
@@ -230,17 +309,7 @@ def inicializar():
 def pensar(texto):
     """
     Envía el texto a Ollama con STREAMING y retorna la respuesta.
-
-    Streaming significa que Ollama envía token por token en vez
-    de esperar a generar toda la respuesta. Nosotros acumulamos
-    los tokens e intentamos parsear JSON después de cada uno.
-
-    Para comandos, esto es ~200-500ms más rápido porque retornamos
-    en cuanto el JSON está completo, sin esperar el "done" final.
-
-    Para conversación, la ganancia es menor pero seguimos recibiendo
-    el texto más temprano.
-
+    Usa el nodo activo del gestor; si falla, conmuta automáticamente al siguiente.
     SIEMPRE retorna una lista de dicts.
     """
     global _memoria
@@ -250,81 +319,67 @@ def pensar(texto):
 
     historial.append({"role": "user", "content": texto})
 
-    datos = {
-        "model": MODELO,
-        "messages": historial,
-        "stream": True  # ← CAMBIO CLAVE: streaming activado.
-    }
+    # Intentamos hasta len(NODOS) veces (una por nodo).
+    for intento in range(len(NODOS)):
+        nodo = _gestor.nodo
+        datos = {
+            "model": nodo["modelo"],
+            "messages": historial,
+            "stream": True,
+        }
+        try:
+            respuesta = requests.post(
+                nodo["url_chat"], json=datos, timeout=60, stream=True
+            )
+            respuesta.raise_for_status()
 
-    try:
-        # stream=True en requests hace que no espere la respuesta completa.
-        # En vez de eso, podemos iterar línea por línea conforme llegan.
-        respuesta = requests.post(
-            URL_OLLAMA, json=datos, timeout=60, stream=True
-        )
-        respuesta.raise_for_status()
+            texto_acumulado = ""
 
-        texto_acumulado = ""
-
-        # Cada línea es un JSON con un token del modelo.
-        # Formato: {"message":{"content":"token"},"done":false}
-        for linea in respuesta.iter_lines(decode_unicode=True):
-            if not linea:
-                continue
-
-            try:
-                chunk = json.loads(linea)
-            except json.JSONDecodeError:
-                continue
-
-            # ¿El modelo terminó de generar?
-            if chunk.get("done", False):
-                break
-
-            # Extraer el token de este chunk.
-            token = chunk.get("message", {}).get("content", "")
-            texto_acumulado += token
-
-            # --- Intento de parseo temprano ---
-            # Después de cada token, verificamos si ya tenemos
-            # un JSON completo. Si sí, retornamos INMEDIATAMENTE
-            # sin esperar más tokens.
-            # Esto es el truco que ahorra 200-500ms en comandos.
-            resultado_temprano = _intentar_parseo_temprano(texto_acumulado)
-            if resultado_temprano is not None:
-                # ¡JSON completo! Guardar en historial y retornar.
-                historial.append({"role": "assistant", "content": texto_acumulado})
-
-                # Consumir el resto del stream en segundo plano
-                # para que Ollama no se quede colgado.
+            for linea in respuesta.iter_lines(decode_unicode=True):
+                if not linea:
+                    continue
                 try:
-                    for _ in respuesta.iter_lines():
+                    chunk = json.loads(linea)
+                except json.JSONDecodeError:
+                    continue
+
+                if chunk.get("done", False):
+                    break
+
+                token = chunk.get("message", {}).get("content", "")
+                texto_acumulado += token
+
+                resultado_temprano = _intentar_parseo_temprano(texto_acumulado)
+                if resultado_temprano is not None:
+                    historial.append({"role": "assistant", "content": texto_acumulado})
+                    try:
+                        for _ in respuesta.iter_lines():
+                            pass
+                    except Exception:
                         pass
-                except Exception:
-                    pass
+                    return resultado_temprano
 
-                return resultado_temprano
+            historial.append({"role": "assistant", "content": texto_acumulado})
+            resultado = _parsear_respuesta(texto_acumulado)
 
-        # Si el stream terminó sin parseo temprano exitoso,
-        # parseamos el texto completo normalmente.
-        historial.append({"role": "assistant", "content": texto_acumulado})
-        resultado = _parsear_respuesta(texto_acumulado)
+            if len(resultado) == 1 and resultado[0].get("comando") == "ninguno":
+                _extraer_perfil_async(texto)
 
-        # Extracción de perfil si es conversación.
-        if len(resultado) == 1 and resultado[0].get("comando") == "ninguno":
-            _extraer_perfil_async(texto)
+            return resultado
 
-        return resultado
+        except (requests.ConnectionError, requests.Timeout) as error:
+            print(f"⚠️ {nodo['nombre']} falló ({error.__class__.__name__}). "
+                  "Intentando nodo alternativo...")
+            if not _gestor.marcar_fallo():
+                break  # ningún nodo disponible
 
-    except requests.ConnectionError:
-        return [{"comando": "ninguno",
-                 "respuesta": "No puedo conectar con Ollama. ¿Está corriendo?"}]
-    except requests.Timeout:
-        return [{"comando": "ninguno",
-                 "respuesta": "Ollama tardó demasiado en responder."}]
-    except Exception as error:
-        return [{"comando": "ninguno",
-                 "respuesta": f"Error inesperado: {error}"}]
+        except Exception as error:
+            return [{"comando": "ninguno",
+                     "respuesta": f"Error inesperado: {error}"}]
+
+    return [{"comando": "ninguno",
+             "respuesta": "No puedo conectar con ningún servidor de IA. "
+                          "Verifica que Ollama esté corriendo."}]
 
 
 def _intentar_parseo_temprano(texto):
@@ -488,11 +543,12 @@ def generar_resumen_sesion():
         {"role": "user", "content": conversacion}
     ]
 
+    nodo = _gestor.nodo
     try:
         respuesta = requests.post(
-            URL_OLLAMA,
-            json={"model": MODELO, "messages": prompt_resumen, "stream": False},
-            timeout=30
+            nodo["url_chat"],
+            json={"model": nodo["modelo"], "messages": prompt_resumen, "stream": False},
+            timeout=30,
         )
         respuesta.raise_for_status()
         resumen = respuesta.json()["message"]["content"].strip()
@@ -517,11 +573,12 @@ def _extraer_perfil_async(texto_usuario):
         )},
         {"role": "user", "content": texto_usuario}
     ]
+    nodo = _gestor.nodo
     try:
         respuesta = requests.post(
-            URL_OLLAMA,
-            json={"model": MODELO, "messages": prompt_extraccion, "stream": False},
-            timeout=15
+            nodo["url_chat"],
+            json={"model": nodo["modelo"], "messages": prompt_extraccion, "stream": False},
+            timeout=15,
         )
         respuesta.raise_for_status()
         texto = respuesta.json()["message"]["content"].strip()

@@ -1,4 +1,4 @@
-﻿# ============================================================
+# ============================================================
 # pc_control.py — Control del PC para Eli (con Spotify API)
 # Recibe nombre de comando + parámetros desde Ollama vía JSON.
 # ============================================================
@@ -34,6 +34,13 @@ try:
 except Exception as error:
     CALENDAR_DISPONIBLE = False
     print(f"⚠️ Google Calendar no disponible: {error}")
+
+try:
+    import gmail
+    GMAIL_DISPONIBLE = True
+except Exception as error:
+    GMAIL_DISPONIBLE = False
+    print(f"⚠️ Gmail no disponible: {error}")
 
 
 # --- Temporizador ---
@@ -148,6 +155,68 @@ def _buscar_evento_calendario(params):
 
     return google_calendar.buscar_evento(busqueda)
 
+
+
+# ============================================================
+# GMAIL
+# ============================================================
+
+def _gmail_check():
+    if not GMAIL_DISPONIBLE:
+        return "Gmail no está configurado."
+    return None
+
+
+def _gmail_no_leidos(params):
+    error = _gmail_check()
+    if error:
+        return error
+    return gmail.contar_no_leidos()
+
+
+def _gmail_recientes(params):
+    error = _gmail_check()
+    if error:
+        return error
+    cantidad = params.get("cantidad", 5)
+    try:
+        cantidad = int(cantidad)
+    except (ValueError, TypeError):
+        cantidad = 5
+    return gmail.leer_emails_recientes(cantidad)
+
+
+def _gmail_importantes(params):
+    error = _gmail_check()
+    if error:
+        return error
+    return gmail.leer_email_importante()
+
+
+def _gmail_buscar(params):
+    error = _gmail_check()
+    if error:
+        return error
+    busqueda = params.get("busqueda", "")
+    if not busqueda:
+        return "¿Qué email quieres buscar?"
+    return gmail.buscar_email(busqueda)
+
+
+def _gmail_enviar(params):
+    error = _gmail_check()
+    if error:
+        return error
+    destinatario = params.get("destinatario", "")
+    asunto = params.get("asunto", "")
+    cuerpo = params.get("cuerpo", "")
+    if not destinatario:
+        return "¿A quién quieres enviar el email? Necesito la dirección."
+    if not asunto:
+        asunto = "Mensaje de Eli"
+    if not cuerpo:
+        return "¿Qué quieres que diga el email?"
+    return gmail.enviar_email(destinatario, asunto, cuerpo)
 
 
 # ============================================================
@@ -843,6 +912,13 @@ DISPATCH = {
     "calendario_semana":       _calendario_semana,
     "crear_evento_calendario": _crear_evento_calendario,
     "buscar_evento_calendario": _buscar_evento_calendario,
+
+    # Gmail
+    "gmail_no_leidos":         _gmail_no_leidos,
+    "gmail_recientes":         _gmail_recientes,
+    "gmail_importantes":       _gmail_importantes,
+    "gmail_buscar":            _gmail_buscar,
+    "gmail_enviar":            _gmail_enviar,
 }
 
 

@@ -1,91 +1,12 @@
 # ============================================================
 # google_calendar.py — Integración con Google Calendar para Eli
 #
-# Usa OAuth 2.0 para acceder al calendario del usuario.
-# La primera vez abre el navegador para autorizar. Después
-# renueva el token automáticamente desde token.json.
-#
-# Archivos que crea:
-#   credentials.json — lo descargas de Google Cloud Console
-#   token.json — se crea automáticamente al autorizar
+# Usa google_auth.py para autenticación compartida con Gmail.
 # ============================================================
 
-import os
 import datetime
-
-# google-api-python-client: cliente para las APIs de Google.
-# google-auth: manejo de credenciales y tokens.
-# google-auth-oauthlib: flujo OAuth para apps de escritorio.
-from google.auth.transport.requests import Request
-from google.oauth2.credentials import Credentials
-from google_auth_oauthlib.flow import InstalledAppFlow
-from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
-
-# --- Configuración ---
-
-# Ruta a las credenciales OAuth descargadas de Google Cloud Console.
-RUTA_CREDENTIALS = r"C:\Users\Lenovo\Eli\credentials.json"
-
-# Ruta donde se guarda el token de acceso (se crea automáticamente).
-RUTA_TOKEN = r"C:\Users\Lenovo\Eli\token.json"
-
-# Scopes: permisos que la app necesita.
-# "calendar" da lectura y escritura completa al calendario.
-# Si solo necesitaras lectura, usarías "calendar.readonly".
-SCOPES = ["https://www.googleapis.com/auth/calendar"]
-
-
-# ============================================================
-# AUTENTICACIÓN
-# ============================================================
-
-def _obtener_servicio():
-    """
-    Crea y retorna un objeto de servicio autenticado de Google Calendar.
-
-    Flujo de autenticación:
-    1. ¿Existe token.json? → Carga las credenciales guardadas.
-    2. ¿El token expiró? → Lo renueva automáticamente con el refresh token.
-    3. ¿No hay token? → Abre el navegador para que autorices la app.
-       Después guarda el token en token.json para la próxima vez.
-
-    Retorna:
-        googleapiclient.discovery.Resource: Servicio de Calendar API.
-    """
-    creds = None
-
-    # Paso 1: intentar cargar token existente.
-    if os.path.exists(RUTA_TOKEN):
-        creds = Credentials.from_authorized_user_file(RUTA_TOKEN, SCOPES)
-
-    # Paso 2: si no hay credenciales válidas, renovar o autorizar.
-    if not creds or not creds.valid:
-        if creds and creds.expired and creds.refresh_token:
-            # Token expirado pero renovable.
-            creds.refresh(Request())
-        else:
-            # No hay token o no es renovable. Flujo completo de OAuth.
-            if not os.path.exists(RUTA_CREDENTIALS):
-                raise FileNotFoundError(
-                    f"No encontré {RUTA_CREDENTIALS}. "
-                    "Descárgalo de Google Cloud Console."
-                )
-
-            flow = InstalledAppFlow.from_client_secrets_file(
-                RUTA_CREDENTIALS, SCOPES
-            )
-            # run_local_server abre tu navegador para autorizar.
-            # port=0 deja que el SO elija un puerto libre.
-            creds = flow.run_local_server(port=0)
-
-        # Guardar el token para la próxima vez.
-        with open(RUTA_TOKEN, "w") as token_file:
-            token_file.write(creds.to_json())
-
-    # Construir el servicio de Calendar API v3.
-    servicio = build("calendar", "v3", credentials=creds)
-    return servicio
+from google_auth import obtener_servicio_calendar
 
 
 # ============================================================
@@ -120,7 +41,7 @@ def proximos_eventos(dias=7):
         str: Texto con los eventos agrupados por día.
     """
     try:
-        servicio = _obtener_servicio()
+        servicio = obtener_servicio_calendar()
 
         ahora = datetime.datetime.now(datetime.timezone.utc)
         limite = ahora + datetime.timedelta(days=dias)
@@ -193,7 +114,7 @@ def _eventos_del_dia(fecha, nombre_dia):
         str: Texto con los eventos del día.
     """
     try:
-        servicio = _obtener_servicio()
+        servicio = obtener_servicio_calendar()
 
         # Construir rango: desde las 00:00 hasta las 23:59 del día.
         inicio_dia = datetime.datetime.combine(
@@ -263,7 +184,7 @@ def crear_evento(titulo, fecha, hora, duracion_minutos=60):
         str: Confirmación o error.
     """
     try:
-        servicio = _obtener_servicio()
+        servicio = obtener_servicio_calendar()
 
         # Construir datetime de inicio.
         inicio_str = f"{fecha}T{hora}:00"
@@ -323,7 +244,7 @@ def buscar_evento(query):
         str: Eventos encontrados o mensaje de no encontrado.
     """
     try:
-        servicio = _obtener_servicio()
+        servicio = obtener_servicio_calendar()
 
         ahora = datetime.datetime.now(datetime.timezone.utc)
         limite = ahora + datetime.timedelta(days=30)
