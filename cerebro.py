@@ -168,6 +168,11 @@ COMANDOS DISPONIBLES (usa el nombre exacto en el campo "comando"):
 - crear_carpeta: Crear una nueva carpeta en proyectos. Parámetro: "nombre" (nombre de la carpeta)
 - calculadora_cientifica: Abrir la calculadora en modo científico
 - convertir_unidades: Abrir conversor de unidades. Parámetro opcional: "tipo" (metros a pies, km a millas, etc.)
+- gmail_no_leidos: Contar cuántos emails sin leer hay en Gmail
+- gmail_recientes: Leer los últimos emails no leídos. Parámetro opcional: "cantidad" (número, default 5)
+- gmail_importantes: Leer emails importantes o con estrella
+- gmail_buscar: Buscar emails por remitente o asunto. Parámetro: "busqueda" (texto, acepta sintaxis Gmail como "from:nombre")
+- gmail_enviar: Enviar un email. Parámetros: "destinatario" (email), "asunto" (texto), "cuerpo" (texto del mensaje)
 - ninguno: NO es un comando del sistema, es conversación normal
 """.strip()
 
@@ -212,6 +217,11 @@ Ejemplos:
   - "abre qgis" / "abre el gis" = abrir_qgis
   - "busca archivos dwg" = buscar_archivos
   - "convierte metros a pies" = convertir_unidades
+  - "cuántos emails tengo" / "emails sin leer" / "tengo correos" = gmail_no_leidos
+  - "léeme mis emails" / "qué emails tengo" / "mis correos" = gmail_recientes
+  - "hay algo importante en mi correo" / "emails importantes" = gmail_importantes
+  - "busca el email de mi profesor" / "busca correo de juan" = gmail_buscar
+  - "envía un email a juan@gmail.com diciendo que llego tarde" = gmail_enviar
 
 {COMANDOS}
 
