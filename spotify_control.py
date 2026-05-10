@@ -183,8 +183,9 @@ def buscar_y_reproducir(query):
         dispositivos = sp.devices()
         lista = dispositivos.get("devices", [])
         if not lista:
-            import os, time
-            os.system(r'start "" "C:\Users\Lenovo\OneDrive\Desktop\Spotify.lnk"')
+            import time
+            import os_compat
+            os_compat.abrir_app("spotify")
             time.sleep(5)
 
         # Si busca algo "similar", usar recomendaciones de Spotify
