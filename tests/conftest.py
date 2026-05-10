@@ -29,6 +29,27 @@ _DEPS_STUB = (
     "pyautogui",
     "psutil",
     "speech_recognition",
+    # Deps de integraciones (sólo necesarias para que comandos/ importe
+    # sin explotar; los handlers nunca se llaman en tests).
+    "spotipy",
+    "spotipy.oauth2",
+    "googleapiclient",
+    "googleapiclient.discovery",
+    "googleapiclient.errors",
+    "googleapiclient.http",
+    "google_auth_oauthlib",
+    "google_auth_oauthlib.flow",
+    "selenium",
+    "selenium.common",
+    "selenium.common.exceptions",
+    "selenium.webdriver",
+    "selenium.webdriver.common",
+    "selenium.webdriver.common.by",
+    "selenium.webdriver.chrome",
+    "selenium.webdriver.chrome.options",
+    "selenium.webdriver.support",
+    "selenium.webdriver.support.ui",
+    "selenium.webdriver.support.expected_conditions",
 )
 for _mod in _DEPS_STUB:
     sys.modules.setdefault(_mod, MagicMock())
