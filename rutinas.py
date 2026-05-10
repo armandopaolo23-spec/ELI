@@ -20,6 +20,7 @@ import datetime
 import threading
 import time
 
+import config as cfg
 from logger import get_logger
 
 log = get_logger(__name__)
@@ -28,8 +29,8 @@ log = get_logger(__name__)
 # Se guarda en la misma carpeta que Eli.
 RUTA_RUTINAS = os.path.join(os.path.dirname(__file__), "rutinas.json")
 
-# Ciudad para el clima del saludo.
-CIUDAD_CLIMA = "Cajamarca"
+# Ciudad para el clima del saludo (override con ELI_CIUDAD_CLIMA).
+CIUDAD_CLIMA = cfg.CIUDAD_CLIMA
 
 
 # ============================================================
@@ -412,7 +413,7 @@ def crear_rutina_por_voz(texto, pensar_fn):
         respuesta = requests.post(
             URL_OLLAMA,
             json={"model": MODELO, "messages": prompt, "stream": False},
-            timeout=30
+            timeout=cfg.TIMEOUT_OLLAMA_RESUMEN,
         )
         respuesta.raise_for_status()
 

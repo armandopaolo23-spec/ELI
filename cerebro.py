@@ -17,6 +17,7 @@ import json
 import threading
 import time
 
+import config as cfg
 from logger import get_logger
 from memoria import (
     cargar_memoria,
@@ -49,7 +50,6 @@ NODOS = [
     },
 ]
 
-_RECOVERY_INTERVAL = 60  # segundos entre intentos de recuperar el nodo primario
 
 
 class _GestorNodos:
@@ -90,7 +90,9 @@ class _GestorNodos:
 
     # --- Internos ---
 
-    def _ping(self, nodo, timeout=2):
+    def _ping(self, nodo, timeout=None):
+        if timeout is None:
+            timeout = cfg.TIMEOUT_OLLAMA_PING
         try:
             requests.get(nodo["url_tags"], timeout=timeout)
             return True
@@ -107,7 +109,7 @@ class _GestorNodos:
 
     def _bucle_recovery(self):
         while True:
-            time.sleep(_RECOVERY_INTERVAL)
+            time.sleep(cfg.RECOVERY_INTERVAL)
             with self._lock:
                 if self._idx == 0:
                     return  # ya estamos en primario, nada que recuperar
@@ -282,7 +284,7 @@ def precarga_modelo():
                     "stream": False,
                     "options": {"num_predict": 1},
                 },
-                timeout=30,
+                timeout=cfg.TIMEOUT_OLLAMA_PRECARGA,
             )
             log.info("✅ %s listo.", nodo["nombre"])
         except Exception as error:
@@ -349,7 +351,7 @@ def pensar(texto, hablar_anticipado=None):
         }
         try:
             respuesta = requests.post(
-                nodo["url_chat"], json=datos, timeout=60, stream=True
+                nodo["url_chat"], json=datos, timeout=cfg.TIMEOUT_OLLAMA, stream=True
             )
             respuesta.raise_for_status()
 
@@ -636,7 +638,7 @@ def generar_resumen_sesion():
         respuesta = requests.post(
             nodo["url_chat"],
             json={"model": nodo["modelo"], "messages": prompt_resumen, "stream": False},
-            timeout=30,
+            timeout=cfg.TIMEOUT_OLLAMA_RESUMEN,
         )
         respuesta.raise_for_status()
         resumen = respuesta.json()["message"]["content"].strip()
@@ -666,7 +668,7 @@ def _extraer_perfil_async(texto_usuario):
         respuesta = requests.post(
             nodo["url_chat"],
             json={"model": nodo["modelo"], "messages": prompt_extraccion, "stream": False},
-            timeout=15,
+            timeout=cfg.TIMEOUT_OLLAMA_PERFIL,
         )
         respuesta.raise_for_status()
         texto = respuesta.json()["message"]["content"].strip()

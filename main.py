@@ -14,6 +14,7 @@ import json
 import time
 import threading
 
+import config as cfg
 from logger import get_logger
 from wake_word import esperar_wake_word
 from escuchar import escuchar, calibrar_una_vez, _q
@@ -31,10 +32,6 @@ from rutinas import (
 )
 
 log = get_logger(__name__)
-
-TIMEOUT_INACTIVIDAD = 600
-MAX_FALLOS_CONSECUTIVOS = 3
-DELAY_ENTRE_COMANDOS = 1.5
 
 COMANDOS_DORMIR = (
     "descansa", "eli descansa", "duerme", "eli duerme",
@@ -144,7 +141,7 @@ def _procesar_resultados(resultados, gui):
                 hablar(respuesta)
 
         if i < total - 1:
-            time.sleep(DELAY_ENTRE_COMANDOS)
+            time.sleep(cfg.DELAY_ENTRE_COMANDOS)
 
 
 def main():
@@ -214,7 +211,7 @@ def main():
         while activo and gui.corriendo:
 
             segundos_inactivo = time.time() - ultima_interaccion
-            if segundos_inactivo >= TIMEOUT_INACTIVIDAD:
+            if segundos_inactivo >= cfg.TIMEOUT_INACTIVIDAD:
                 gui.cambiar_estado("hablando")
                 gui.mostrar_sistema("Timeout — volviendo a espera")
                 hablar("Llevo un rato sin escucharte. Estaré en espera.")
@@ -229,15 +226,15 @@ def main():
 
             if not texto:
                 fallos_consecutivos += 1
-                if fallos_consecutivos >= MAX_FALLOS_CONSECUTIVOS:
+                if fallos_consecutivos >= cfg.MAX_FALLOS_CONSECUTIVOS:
                     gui.cambiar_estado("hablando")
                     gui.mostrar_sistema(
-                        f"{MAX_FALLOS_CONSECUTIVOS} fallos — volviendo a espera"
+                        f"{cfg.MAX_FALLOS_CONSECUTIVOS} fallos — volviendo a espera"
                     )
                     hablar("No te escucho. Estaré en espera si me necesitas.")
                     break
                 gui.mostrar_sistema(
-                    f"No entendí ({fallos_consecutivos}/{MAX_FALLOS_CONSECUTIVOS})"
+                    f"No entendí ({fallos_consecutivos}/{cfg.MAX_FALLOS_CONSECUTIVOS})"
                 )
                 continue
 
