@@ -14,11 +14,14 @@
 #    y se ejecutan los comandos guardados de esa rutina.
 # ============================================================
 
+from __future__ import annotations
+
 import json
 import os
 import datetime
 import threading
 import time
+from typing import Any, Callable
 
 import config as cfg
 from logger import get_logger
@@ -37,7 +40,11 @@ CIUDAD_CLIMA = cfg.CIUDAD_CLIMA
 # 1. SALUDO AUTOMÁTICO
 # ============================================================
 
-def ejecutar_saludo(hablar_fn, pensar_fn, clima_fn):
+def ejecutar_saludo(
+    hablar_fn: Callable[[str], None],
+    pensar_fn: Callable[..., list[dict[str, Any]]],
+    clima_fn: Callable[[dict[str, Any]], str],
+) -> None:
     """
     Saludo inteligente al iniciar Eli.
 
@@ -112,7 +119,7 @@ def ejecutar_saludo(hablar_fn, pensar_fn, clima_fn):
 # 2. GESTIÓN DE RUTINAS (CRUD)
 # ============================================================
 
-def cargar_rutinas():
+def cargar_rutinas() -> dict[str, dict[str, Any]]:
     """
     Lee rutinas.json y retorna el diccionario de rutinas.
 
@@ -149,7 +156,7 @@ def cargar_rutinas():
         return {}
 
 
-def guardar_rutinas(rutinas):
+def guardar_rutinas(rutinas: dict[str, dict[str, Any]]) -> None:
     """Guarda el diccionario de rutinas en rutinas.json."""
     try:
         with open(RUTA_RUTINAS, "w", encoding="utf-8") as f:
@@ -158,7 +165,7 @@ def guardar_rutinas(rutinas):
         log.warning("No pude guardar rutinas: %s", error)
 
 
-def crear_rutina(nombre, hora, comandos):
+def crear_rutina(nombre: str, hora: str, comandos: list[dict[str, Any]]) -> str:
     """
     Crea una nueva rutina o reemplaza una existente.
 
@@ -184,7 +191,7 @@ def crear_rutina(nombre, hora, comandos):
     return f"Rutina '{nombre}' guardada con {len(comandos)} comandos."
 
 
-def eliminar_rutina(nombre):
+def eliminar_rutina(nombre: str) -> str:
     """Elimina una rutina por nombre."""
     rutinas = cargar_rutinas()
     nombre = nombre.lower()
@@ -197,7 +204,7 @@ def eliminar_rutina(nombre):
     return f"Rutina '{nombre}' eliminada."
 
 
-def listar_rutinas():
+def listar_rutinas() -> str:
     """Retorna un texto con todas las rutinas guardadas."""
     rutinas = cargar_rutinas()
 
@@ -214,7 +221,7 @@ def listar_rutinas():
     return "Tus rutinas: " + ". ".join(partes) + "."
 
 
-def obtener_rutina(nombre):
+def obtener_rutina(nombre: str) -> dict[str, Any] | None:
     """Retorna los datos de una rutina por nombre, o None."""
     rutinas = cargar_rutinas()
     return rutinas.get(nombre.lower())
@@ -224,7 +231,11 @@ def obtener_rutina(nombre):
 # 3. EJECUCIÓN DE RUTINAS
 # ============================================================
 
-def ejecutar_rutina(nombre, ejecutar_comando_fn, hablar_fn):
+def ejecutar_rutina(
+    nombre: str,
+    ejecutar_comando_fn: Callable[[str, dict[str, Any]], str | None],
+    hablar_fn: Callable[[str], None],
+) -> str:
     """
     Ejecuta todos los comandos de una rutina en secuencia.
 
@@ -276,11 +287,15 @@ class SchedulerRutinas:
     Se ejecuta como daemon: muere cuando Eli se cierra.
     """
 
-    def __init__(self, ejecutar_comando_fn, hablar_fn):
+    def __init__(
+        self,
+        ejecutar_comando_fn: Callable[[str, dict[str, Any]], str | None],
+        hablar_fn: Callable[[str], None],
+    ) -> None:
         self.ejecutar_comando_fn = ejecutar_comando_fn
         self.hablar_fn = hablar_fn
-        self.corriendo = False
-        self.hilo = None
+        self.corriendo: bool = False
+        self.hilo: threading.Thread | None = None
 
         # Set de rutinas que ya se ejecutaron hoy.
         # Se limpia a medianoche (cuando el día cambia).
@@ -288,18 +303,18 @@ class SchedulerRutinas:
         self._ejecutadas_hoy = set()
         self._dia_actual = datetime.date.today()
 
-    def iniciar(self):
+    def iniciar(self) -> None:
         """Arranca el scheduler en un hilo daemon."""
         self.corriendo = True
         self.hilo = threading.Thread(target=self._loop, daemon=True)
         self.hilo.start()
         log.info("⏰ Scheduler de rutinas iniciado.")
 
-    def detener(self):
+    def detener(self) -> None:
         """Detiene el scheduler."""
         self.corriendo = False
 
-    def _loop(self):
+    def _loop(self) -> None:
         """Loop principal: revisa cada 30 segundos si hay rutinas pendientes."""
         while self.corriendo:
             try:
@@ -314,7 +329,7 @@ class SchedulerRutinas:
                     return
                 time.sleep(1)
 
-    def _verificar_rutinas(self):
+    def _verificar_rutinas(self) -> None:
         """Verifica si alguna rutina debe ejecutarse ahora."""
         ahora = datetime.datetime.now()
         hora_actual = ahora.strftime("%H:%M")
@@ -356,7 +371,7 @@ class SchedulerRutinas:
 # 5. CREAR RUTINAS POR VOZ (asistida por Ollama)
 # ============================================================
 
-def crear_rutina_por_voz(texto, pensar_fn):
+def crear_rutina_por_voz(texto: str, pensar_fn: Callable[..., Any]) -> str:
     """
     Interpreta una instrucción de voz para crear una rutina.
 

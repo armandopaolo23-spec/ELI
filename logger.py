@@ -14,6 +14,8 @@ Configuración:
     - Variable entorno ELI_LOG_LEVEL=DEBUG fuerza DEBUG en consola.
 """
 
+from __future__ import annotations
+
 import logging
 import logging.handlers
 import os
@@ -25,7 +27,10 @@ _LOG_FILE = _LOG_DIR / "eli.log"
 _CONFIGURED = False
 
 
-def configurar_logging(nivel_consola=None, nivel_archivo=logging.DEBUG):
+def configurar_logging(
+    nivel_consola: int | None = None,
+    nivel_archivo: int = logging.DEBUG,
+) -> None:
     """Idempotente. Llamar una sola vez al inicio (main.py)."""
     global _CONFIGURED
     if _CONFIGURED:
@@ -62,7 +67,7 @@ def configurar_logging(nivel_consola=None, nivel_archivo=logging.DEBUG):
     _CONFIGURED = True
 
 
-def get_logger(nombre):
+def get_logger(nombre: str) -> logging.Logger:
     """Retorna un logger anidado bajo 'eli.<nombre>'."""
     configurar_logging()
     if nombre == "__main__" or not nombre:

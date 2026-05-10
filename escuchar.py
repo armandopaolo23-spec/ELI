@@ -16,6 +16,10 @@
 # Ganancia total: ~300-600ms menos en el reconocimiento.
 # ============================================================
 
+from __future__ import annotations
+
+from typing import Any
+
 import sounddevice as sd
 import numpy as np
 import scipy.io.wavfile as wav
@@ -48,11 +52,11 @@ _stream = None
 _q = queue.Queue()
 
 
-def _callback(indata, frames, time_info, status):
+def _callback(indata: Any, frames: int, time_info: Any, status: Any) -> None:
     _q.put(indata.copy())
 
 
-def calibrar_una_vez():
+def calibrar_una_vez() -> None:
     """Inicia el InputStream persistente del micrófono."""
     global _stream
     if _stream is not None:
@@ -73,8 +77,8 @@ def calibrar_una_vez():
     log.info("✅ Micrófono listo.")
 
 
-def _leer_chunk():
-    """Lee un bloque de audio del stream."""
+def _leer_chunk() -> Any:
+    """Lee un bloque de audio del stream. Retorna np.ndarray 1-D."""
     frames = []
     needed = int(SAMPLERATE * CHUNK)
     collected = 0
@@ -85,7 +89,7 @@ def _leer_chunk():
     return np.concatenate(frames)[:needed].flatten()
 
 
-def escuchar():
+def escuchar() -> str:
     """
     Escucha al usuario con detección inteligente de voz.
     Optimizada: downsample + trim + BytesIO.

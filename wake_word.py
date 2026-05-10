@@ -21,6 +21,10 @@
 #   "delin" tiene distancia 2 → se rechaza.
 # ============================================================
 
+from __future__ import annotations
+
+from typing import Any
+
 import sounddevice as sd
 import numpy as np
 import scipy.io.wavfile as wav
@@ -76,7 +80,7 @@ _q = queue.Queue()
 # DISTANCIA DE LEVENSHTEIN
 # ============================================================
 
-def _levenshtein(s1, s2):
+def _levenshtein(s1: str, s2: str) -> int:
     """
     Calcula la distancia de edición entre dos cadenas.
 
@@ -125,7 +129,7 @@ def _levenshtein(s1, s2):
     return fila_actual[len(s2)]
 
 
-def _normalizar(texto):
+def _normalizar(texto: str) -> str:
     """
     Normaliza texto para comparación: quita tildes y pasa a minúsculas.
 
@@ -147,7 +151,7 @@ def _normalizar(texto):
 # VERIFICACIÓN DEL WAKE WORD (los 3 filtros)
 # ============================================================
 
-def _es_wake_word(texto):
+def _es_wake_word(texto: str) -> bool:
     """
     Verifica si el texto transcrito es el wake word.
 
@@ -230,12 +234,12 @@ def _es_wake_word(texto):
 # STREAM DE AUDIO
 # ============================================================
 
-def _callback(indata, frames, time_info, status):
+def _callback(indata: Any, frames: int, time_info: Any, status: Any) -> None:
     """Callback del stream: mete cada bloque de audio en la cola."""
     _q.put(indata.copy())
 
 
-def _iniciar_stream():
+def _iniciar_stream() -> None:
     """Inicia el InputStream persistente del micrófono."""
     global _stream
     log.info("🔧 Iniciando micrófono para wake word...")
@@ -254,7 +258,7 @@ def _iniciar_stream():
     log.info("✅ Micrófono listo.")
 
 
-def _leer_audio(segundos):
+def _leer_audio(segundos: float) -> Any:
     # Limpiar TODO el audio acumulado antes de grabar
     while not _q.empty():
         _q.get()
@@ -268,7 +272,7 @@ def _leer_audio(segundos):
     return np.concatenate(frames)[:frames_needed].flatten()
 
 
-def _reconocer(audio):
+def _reconocer(audio: Any) -> str:
     """Envía audio a Google Speech y retorna el texto."""
     archivo = tempfile.NamedTemporaryFile(suffix=".wav", delete=False)
     nombre = archivo.name
@@ -294,7 +298,7 @@ def _reconocer(audio):
 # FUNCIÓN PRINCIPAL
 # ============================================================
 
-def esperar_wake_word():
+def esperar_wake_word() -> bool:
     """
     Bloquea hasta que el usuario diga "Eli" o "Hey Eli".
     Usa los 3 filtros para minimizar falsos positivos.

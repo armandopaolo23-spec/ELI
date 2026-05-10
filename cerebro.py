@@ -12,6 +12,10 @@
 #   y verifica en background cada 60s si PCN volvió.
 # ============================================================
 
+from __future__ import annotations
+
+from typing import Any, Callable
+
 import requests
 import json
 import threading
@@ -63,11 +67,11 @@ class _GestorNodos:
     # --- API pública ---
 
     @property
-    def nodo(self):
+    def nodo(self) -> dict[str, str]:
         with self._lock:
             return NODOS[self._idx]
 
-    def marcar_fallo(self):
+    def marcar_fallo(self) -> bool:
         """Llamado cuando el nodo actual no responde. Intenta el siguiente."""
         with self._lock:
             anterior = self._idx
@@ -84,13 +88,13 @@ class _GestorNodos:
             log.warning("Ningún nodo Ollama disponible.")
             return False
 
-    def iniciar_recovery(self):
+    def iniciar_recovery(self) -> None:
         """Inicia el hilo de recuperación del nodo primario."""
         self._iniciar_recovery_si_no_corre()
 
     # --- Internos ---
 
-    def _ping(self, nodo, timeout=None):
+    def _ping(self, nodo: dict[str, str], timeout: int | None = None) -> bool:
         if timeout is None:
             timeout = cfg.TIMEOUT_OLLAMA_PING
         try:
@@ -99,7 +103,7 @@ class _GestorNodos:
         except Exception:
             return False
 
-    def _iniciar_recovery_si_no_corre(self):
+    def _iniciar_recovery_si_no_corre(self) -> None:
         if self._hilo_recovery and self._hilo_recovery.is_alive():
             return
         self._hilo_recovery = threading.Thread(
@@ -107,7 +111,7 @@ class _GestorNodos:
         )
         self._hilo_recovery.start()
 
-    def _bucle_recovery(self):
+    def _bucle_recovery(self) -> None:
         while True:
             time.sleep(cfg.RECOVERY_INTERVAL)
             with self._lock:
@@ -266,7 +270,7 @@ _modelo_precargado = False
 # PRECARGA DEL MODELO
 # ============================================================
 
-def precarga_modelo():
+def precarga_modelo() -> None:
     """Envía una petición mínima a cada nodo disponible para calentar los modelos en GPU."""
     global _modelo_precargado
 
@@ -297,7 +301,7 @@ def precarga_modelo():
 # INICIALIZACIÓN
 # ============================================================
 
-def inicializar():
+def inicializar() -> None:
     """Carga la memoria, construye el historial y precarga el modelo."""
     global _memoria, historial
 
@@ -320,7 +324,10 @@ def inicializar():
 # PENSAR (con streaming)
 # ============================================================
 
-def pensar(texto, hablar_anticipado=None):
+def pensar(
+    texto: str,
+    hablar_anticipado: Callable[[str], threading.Thread | None] | None = None,
+) -> list[dict[str, Any]]:
     """
     Envía el texto a Ollama con STREAMING y retorna la respuesta.
     Usa el nodo activo del gestor; si falla, conmuta automáticamente al siguiente.
@@ -438,7 +445,7 @@ _RX_COMANDO_NINGUNO = _re.compile(r'"comando"\s*:\s*"ninguno"')
 _RX_RESPUESTA = _re.compile(r'"respuesta"\s*:\s*"((?:[^"\\]|\\.)*)"')
 
 
-def _intentar_extraer_respuesta_temprana(texto):
+def _intentar_extraer_respuesta_temprana(texto: str) -> str | None:
     """
     Detecta si el stream parcial ya contiene un campo "respuesta"
     completo dentro de una respuesta conversacional (comando=ninguno).
@@ -472,7 +479,7 @@ def _intentar_extraer_respuesta_temprana(texto):
         return None
 
 
-def _intentar_parseo_temprano(texto):
+def _intentar_parseo_temprano(texto: str) -> list[dict[str, Any]] | None:
     """
     Intenta parsear el texto acumulado como JSON completo.
 
@@ -528,7 +535,7 @@ def _intentar_parseo_temprano(texto):
 # PARSEO Y NORMALIZACIÓN
 # ============================================================
 
-def _parsear_respuesta(texto_crudo):
+def _parsear_respuesta(texto_crudo: str) -> list[dict[str, Any]]:
     """Parsea la respuesta completa de Ollama. Fallback del streaming."""
     texto_limpio = texto_crudo.strip()
 
@@ -563,7 +570,7 @@ def _parsear_respuesta(texto_crudo):
     return _normalizar_resultado(resultado)
 
 
-def _normalizar_resultado(resultado):
+def _normalizar_resultado(resultado: dict[str, Any]) -> list[dict[str, Any]]:
     """
     Normaliza el resultado del JSON a una lista uniforme.
     Función compartida por parseo temprano y parseo completo.
@@ -608,7 +615,7 @@ def _normalizar_resultado(resultado):
 # MEMORIA
 # ============================================================
 
-def generar_resumen_sesion():
+def generar_resumen_sesion() -> str:
     """Genera un resumen de la sesión y lo guarda en memoria."""
     global _memoria
     if _memoria is None:
@@ -651,7 +658,7 @@ def generar_resumen_sesion():
         return ""
 
 
-def _extraer_perfil_async(texto_usuario):
+def _extraer_perfil_async(texto_usuario: str) -> None:
     """Extrae datos personales del texto del usuario."""
     global _memoria
     prompt_extraccion = [
@@ -689,7 +696,7 @@ def _extraer_perfil_async(texto_usuario):
         log.debug("Extracción de perfil falló (silenciado)", exc_info=True)
 
 
-def _construir_system_prompt(texto_memoria):
+def _construir_system_prompt(texto_memoria: str) -> str:
     """Construye el system prompt inyectando memoria y comandos."""
     if not texto_memoria:
         texto_memoria = "No hay datos previos del usuario. Primera sesión."
@@ -698,7 +705,7 @@ def _construir_system_prompt(texto_memoria):
     return prompt
 
 
-def limpiar_historial():
+def limpiar_historial() -> None:
     """Borra la conversación pero mantiene la memoria."""
     global _memoria
     if _memoria is None:
@@ -709,7 +716,7 @@ def limpiar_historial():
     historial.append({"role": "system", "content": system_prompt})
 
 
-def obtener_memoria():
+def obtener_memoria() -> dict[str, Any]:
     """Retorna la memoria actual."""
     global _memoria
     if _memoria is None:
