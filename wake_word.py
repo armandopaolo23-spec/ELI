@@ -30,6 +30,10 @@ import os
 import queue
 import time
 
+from logger import get_logger
+
+log = get_logger(__name__)
+
 # --- Configuración del micrófono ---
 
 SAMPLERATE = 44100
@@ -177,7 +181,7 @@ def _es_wake_word(texto):
     # Si la frase es muy larga, descartamos inmediatamente.
     # Un wake word es 1-4 palabras máximo.
     if len(palabras) > MAX_PALABRAS:
-        print(f"   ❌ Frase muy larga ({len(palabras)} palabras): '{texto}'")
+        log.debug("❌ Frase muy larga (%d palabras): '%s'", len(palabras), texto)
         return False
 
     # Normalizamos todo para las comparaciones.
@@ -188,7 +192,7 @@ def _es_wake_word(texto):
     # Verificamos si la frase completa coincide con alguna frase wake.
     # Esto cubre "hey eli", "oye eli", etc.
     if texto_norm in {_normalizar(f) for f in WAKE_FRASES}:
-        print(f"   ✅ Frase exacta: '{texto}'")
+        log.debug("✅ Frase exacta: '%s'", texto)
         return True
 
     # Verificamos si alguna palabra individual coincide exactamente.
@@ -196,7 +200,7 @@ def _es_wake_word(texto):
     exactos_norm = {_normalizar(w) for w in WAKE_EXACTOS}
     for palabra in palabras_norm:
         if palabra in exactos_norm:
-            print(f"   ✅ Palabra exacta: '{palabra}' en '{texto}'")
+            log.debug("✅ Palabra exacta: '%s' en '%s'", palabra, texto)
             return True
 
     # ─── Filtro 3: SIMILITUD (Levenshtein) ───
@@ -208,7 +212,7 @@ def _es_wake_word(texto):
     for palabra in palabras_norm:
         dist = _levenshtein(palabra, objetivo)
         if dist <= MAX_DISTANCIA:
-            print(f"   ✅ Similar: '{palabra}' (distancia {dist} de '{objetivo}')")
+            log.debug("✅ Similar: '%s' (distancia %d de '%s')", palabra, dist, objetivo)
             return True
 
     # También verificamos similitud contra "hey eli" como bloque.
@@ -221,11 +225,14 @@ def _es_wake_word(texto):
             # Para frases de 2 palabras, permitimos distancia 2
             # porque hay más caracteres donde puede haber error.
             if dist <= 2:
-                print(f"   ✅ Frase similar: '{frase_dos}' (distancia {dist} de '{frase_wake}')")
+                log.debug(
+                    "✅ Frase similar: '%s' (distancia %d de '%s')",
+                    frase_dos, dist, frase_wake,
+                )
                 return True
 
     # Ningún filtro aprobó.
-    print(f"   ❌ No coincide: '{texto}'")
+    log.debug("❌ No coincide: '%s'", texto)
     return False
 
 
@@ -241,7 +248,7 @@ def _callback(indata, frames, time_info, status):
 def _iniciar_stream():
     """Inicia el InputStream persistente del micrófono."""
     global _stream
-    print("🔧 Iniciando micrófono para wake word...")
+    log.info("🔧 Iniciando micrófono para wake word...")
     _stream = sd.InputStream(
         samplerate=SAMPLERATE,
         channels=1,
@@ -254,7 +261,7 @@ def _iniciar_stream():
     time.sleep(WARMUP_SECONDS)
     while not _q.empty():
         _q.get()
-    print("✅ Micrófono listo.")
+    log.info("✅ Micrófono listo.")
 
 
 def _leer_audio(segundos):
@@ -311,7 +318,7 @@ def esperar_wake_word():
     if _stream is None:
         _iniciar_stream()
 
-    print("💤 Esperando wake word... (di 'Eli' o 'Hey Eli')")
+    log.info("💤 Esperando wake word... (di 'Eli' o 'Hey Eli')")
 
     while True:
         try:
@@ -323,12 +330,12 @@ def esperar_wake_word():
             if volumen <= UMBRAL:
                 continue
 
-            print("   👂 Detecté voz, verificando...")
+            log.debug("👂 Detecté voz, verificando...")
             audio_wake = _leer_audio(DURACION_WAKE)
             texto = _reconocer(audio_wake)
 
             if not texto:
-                print("   No entendí. Sigo esperando...")
+                log.debug("No entendí. Sigo esperando...")
                 continue
 
             # Aquí está el cambio: en vez de "if any(wake in texto)",
@@ -336,7 +343,7 @@ def esperar_wake_word():
             if _es_wake_word(texto):
                 return True
             else:
-                print("   Sigo esperando...")
+                log.debug("Sigo esperando...")
 
         except KeyboardInterrupt:
             return False

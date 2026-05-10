@@ -17,6 +17,10 @@ import edge_tts
 import sounddevice as sd
 import soundfile as sf
 
+from logger import get_logger
+
+log = get_logger(__name__)
+
 # --- Configuración ---
 VOZ = "es-MX-DaliaNeural"
 
@@ -31,7 +35,8 @@ def hablar(texto):
 
     try:
         asyncio.run(_hablar_async(texto))
-    except Exception:
+    except Exception as error:
+        log.debug("asyncio.run falló (%s); intentando fallback.", error)
         # Si asyncio.run() falla (ej: loop ya corriendo), intentar alternativa.
         try:
             loop = asyncio.get_event_loop()
@@ -43,7 +48,7 @@ def hablar(texto):
             else:
                 loop.run_until_complete(_hablar_async(texto))
         except Exception:
-            pass
+            log.warning("TTS falló para texto de %d caracteres", len(texto), exc_info=True)
 
 
 async def _hablar_async(texto):

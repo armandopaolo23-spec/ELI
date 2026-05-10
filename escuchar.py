@@ -26,6 +26,10 @@ import os
 import queue
 import time
 
+from logger import get_logger
+
+log = get_logger(__name__)
+
 # --- Configuración del stream ---
 
 SAMPLERATE = 44100       # Frecuencia del micrófono (no cambiar).
@@ -52,7 +56,7 @@ def calibrar_una_vez():
     global _stream
     if _stream is not None:
         return
-    print("🔧 Iniciando micrófono...")
+    log.info("🔧 Iniciando micrófono...")
     _stream = sd.InputStream(
         samplerate=SAMPLERATE,
         channels=1,
@@ -65,7 +69,7 @@ def calibrar_una_vez():
     time.sleep(WARMUP_SECONDS)
     while not _q.empty():
         _q.get()
-    print("✅ Micrófono listo.")
+    log.info("✅ Micrófono listo.")
 
 
 def _leer_chunk():
@@ -96,7 +100,7 @@ def escuchar():
     while not _q.empty():
         _q.get()
 
-    print("🎤 Te escucho...")
+    log.debug("🎤 Te escucho...")
 
     # --- Fase 1: Detección de voz (igual que antes) ---
     bloques_audio = []
@@ -183,7 +187,7 @@ def escuchar():
     except sr.UnknownValueError:
         return ""
     except sr.RequestError:
-        print("⚠️ Sin conexión a internet.")
+        log.warning("Sin conexión a internet (Google Speech).")
         return ""
 
 
