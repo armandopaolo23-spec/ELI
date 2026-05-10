@@ -30,17 +30,17 @@ import os
 import queue
 import time
 
+import config as cfg
 from logger import get_logger
 
 log = get_logger(__name__)
 
-# --- Configuración del micrófono ---
-
-SAMPLERATE = 44100
-WARMUP_SECONDS = 0.6     # Tiempo de calentamiento del micrófono.
-DURACION_MONITOR = 1.0   # Segundos por bloque de monitoreo de volumen.
-DURACION_WAKE = 4.0      # Segundos de grabación para verificar wake word.
-UMBRAL = 0.005            # Volumen mínimo para considerar que hay voz.
+# Aliases desde config (sobreescribibles con ELI_* env vars).
+SAMPLERATE = cfg.SAMPLERATE
+WARMUP_SECONDS = cfg.MIC_WARMUP_SECONDS
+DURACION_MONITOR = cfg.WAKE_DURACION_MONITOR
+DURACION_WAKE = cfg.WAKE_DURACION_GRABACION
+UMBRAL = cfg.WAKE_UMBRAL
 
 # --- Configuración del wake word ---
 
@@ -63,18 +63,8 @@ WAKE_FRASES = {
 # "Eli qué hora es" = 4 palabras → ok (puede pasar).
 # "Estaba hablando con mi amigo sobre eli" = 8 → rechazado.
 # Si alguien dijo una frase larga, no estaba llamando a Eli.
-MAX_PALABRAS = 4
-
-# Distancia de Levenshtein máxima para considerar una coincidencia.
-# 1 = acepta UN carácter de diferencia.
-#   "eli" vs "eli" → distancia 0 → ✅
-#   "elí" vs "eli" → distancia 0 (normalizamos tildes) → ✅
-#   "elli" vs "eli" → distancia 1 → ✅
-#   "heli" vs "eli" → distancia 1 → ✅
-#   "elite" vs "eli" → distancia 2 → ❌
-#   "delin" vs "eli" → distancia 3 → ❌
-#   "celis" vs "eli" → distancia 2 → ❌
-MAX_DISTANCIA = 1
+MAX_PALABRAS = cfg.WAKE_MAX_PALABRAS
+MAX_DISTANCIA = cfg.WAKE_MAX_DISTANCIA
 
 # --- Estado del stream ---
 

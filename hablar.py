@@ -27,20 +27,14 @@ import edge_tts
 import sounddevice as sd
 import soundfile as sf
 
+import config as cfg
 from logger import get_logger
 
 log = get_logger(__name__)
 
-VOZ = "es-MX-DaliaNeural"
-
-# Tamaño mínimo de fragmento. Si una oración queda más corta, la
-# fusionamos con la siguiente para no pagar overhead de TTS por
-# interjecciones de 2-3 palabras.
-_MIN_LARGO_FRAGMENTO = 15
-
-# Buffer pequeño en la cola para que el productor no se adelante
-# demasiado (acapararía RAM y red sin beneficio).
-_BUFFER_ORACIONES = 2
+VOZ = cfg.VOZ
+_MIN_LARGO_FRAGMENTO = cfg.TTS_MIN_FRAGMENTO
+_BUFFER_ORACIONES = cfg.TTS_BUFFER_ORACIONES
 
 # Sentinel que marca el fin del stream de audio en la cola.
 _FIN_AUDIO = object()

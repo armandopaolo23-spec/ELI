@@ -26,20 +26,21 @@ import os
 import queue
 import time
 
+import config as cfg
 from logger import get_logger
 
 log = get_logger(__name__)
 
-# --- Configuración del stream ---
-
-SAMPLERATE = 44100       # Frecuencia del micrófono (no cambiar).
-SAMPLERATE_GOOGLE = 16000  # Frecuencia que enviamos a Google.
-WARMUP_SECONDS = 0.6
-UMBRAL = 0.008
-SILENCIO_PARA_CORTAR = 1.5
-ESPERA_MAXIMA = 8.0
-DURACION_MAXIMA = 15.0
-CHUNK = 0.3
+# Aliases locales para legibilidad. Todos los valores vienen de config
+# y pueden sobreescribirse con ELI_* env vars.
+SAMPLERATE = cfg.SAMPLERATE
+SAMPLERATE_GOOGLE = cfg.SAMPLERATE_GOOGLE
+WARMUP_SECONDS = cfg.MIC_WARMUP_SECONDS
+UMBRAL = cfg.MIC_UMBRAL
+SILENCIO_PARA_CORTAR = cfg.ESCUCHA_SILENCIO_CORTE
+ESPERA_MAXIMA = cfg.ESCUCHA_ESPERA_MAXIMA
+DURACION_MAXIMA = cfg.ESCUCHA_DURACION_MAXIMA
+CHUNK = cfg.ESCUCHA_CHUNK
 
 # --- Estado del stream ---
 
