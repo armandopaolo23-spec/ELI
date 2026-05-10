@@ -140,6 +140,8 @@ COMANDOS DISPONIBLES (usa el nombre exacto en el campo "comando"):
 - spotify_que_suena: qué canción está sonando ahora mismo en Spotify
 - spotify_buscar: buscar y reproducir una canción o artista específico. Parámetro: "busqueda" (texto)
 - spotify_playlist: Reproducir una playlist. Parámetro: "busqueda" (nombre de la playlist)
+- listar_cursos: Lista todos los cursos del usuario
+- abrir_curso: Abre un curso específico en el navegador. Parámetro: "nombre_curso" (string con nombre parcial o completo)
 - captura_pantalla: Tomar una captura de pantalla / screenshot
 - bloquear_pantalla: Bloquear la pantalla / el PC
 - decir_hora: Decir qué hora es

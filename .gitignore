@@ -1,0 +1,15 @@
+
+# Blackboard cookies (sensibles)
+blackboard_cookies.json
+upn_cookies.json
+
+# Google tokens (sensibles)
+token.json
+
+# Debug files
+blackboard_*.html
+blackboard_*.png
+
+# Python cache
+__pycache__/
+*.pyc

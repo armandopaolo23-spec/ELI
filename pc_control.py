@@ -14,6 +14,7 @@ import threading
 import requests
 import shutil
 import glob
+from blackboard_commands import listar_mis_cursos, abrir_curso
 
 
 # --- Importar control de Spotify ---
@@ -866,6 +867,10 @@ DISPATCH = {
     "spotify_reproducir":     _spotify_buscar,
     "spotify_playlist":       _spotify_playlist,
     "spotify_buscar":         _spotify_buscar,
+
+    # Comandos Blackboard
+    "listar_cursos":          lambda p: listar_mis_cursos(),
+    "abrir_curso":            lambda p: abrir_curso(p.get("parametros", {}).get("nombre_curso", "")),
 
     # Pantalla
     "captura_pantalla":       _captura_pantalla,
