@@ -16,6 +16,10 @@ import shutil
 import glob
 from blackboard_commands import listar_mis_cursos, abrir_curso
 
+from logger import get_logger
+
+log = get_logger(__name__)
+
 
 # --- Importar control de Spotify ---
 # Usamos try/except porque si spotipy no está instalado o las
@@ -26,22 +30,21 @@ try:
     SPOTIFY_DISPONIBLE = True
 except Exception as error:
     SPOTIFY_DISPONIBLE = False
-    print(f"⚠️ Spotify no disponible: {error}")
-    print("   Los demás comandos funcionan con normalidad.\n")
-    
+    log.warning("Spotify no disponible: %s. Los demás comandos siguen funcionando.", error)
+
 try:
     import google_calendar
     CALENDAR_DISPONIBLE = True
 except Exception as error:
     CALENDAR_DISPONIBLE = False
-    print(f"⚠️ Google Calendar no disponible: {error}")
+    log.warning("Google Calendar no disponible: %s", error)
 
 try:
     import gmail
     GMAIL_DISPONIBLE = True
 except Exception as error:
     GMAIL_DISPONIBLE = False
-    print(f"⚠️ Gmail no disponible: {error}")
+    log.warning("Gmail no disponible: %s", error)
 
 
 # --- Temporizador ---
@@ -517,7 +520,7 @@ def _cancelar_temporizador(params):
 
 def _temporizador_terminado(texto_tiempo):
     mensaje = f"¡Tiempo! El temporizador de {texto_tiempo} ha terminado."
-    print(f"\n⏰ {mensaje}")
+    log.info("⏰ %s", mensaje)
     if _funcion_hablar:
         _funcion_hablar(mensaje)
 

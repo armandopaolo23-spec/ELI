@@ -9,6 +9,10 @@ from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
 
+from logger import get_logger
+
+log = get_logger(__name__)
+
 
 class AulaVirtualUPN:
     """Automatiza Blackboard UPN usando Chrome WebDriver y cookies JSON."""
@@ -92,12 +96,12 @@ class AulaVirtualUPN:
         except TimeoutException:
             pass
 
-        print("Abriendo Blackboard UPN en Firefox...")
-        print("Por favor, inicia sesión manualmente en la ventana abierta.")
+        log.info("Abriendo Blackboard UPN en Firefox...")
+        log.info("Inicia sesión manualmente en la ventana abierta.")
         input("Cuando hayas iniciado sesión, presiona Enter para guardar las cookies: ")
 
         self.guardar_cookies(self.cookies_path)
-        print(f"Cookies guardadas en: {self.cookies_path}")
+        log.info("Cookies guardadas en: %s", self.cookies_path)
 
     def _verificar_sesion(self):
         """Verifica si la sesión parece estar activa revisando el estado de la página."""
@@ -202,46 +206,40 @@ class AulaVirtualUPN:
         return tareas
 
     def debug_cursos(self):
-        """Inspecciona la página de cursos para identificar selectores correctos"""
-        print("\n🔍 DEBUG: Navegando a la página de cursos...")
-        
-        # 1. Ir a página principal
+        """Inspecciona la página de cursos para identificar selectores correctos."""
+        log.info("🔍 DEBUG: Navegando a la página de cursos...")
+
         self.driver.get(self.BASE_URL)
         time.sleep(10)
         self.driver.save_screenshot("blackboard_pagina.png")
-        print("📸 Screenshot guardado: blackboard_pagina.png")
-        
-        # 2. Click en "Cursos" del sidebar
+        log.info("📸 Screenshot guardado: blackboard_pagina.png")
+
         try:
             sidebar_cursos = self.driver.find_element(
-                By.XPATH, 
+                By.XPATH,
                 "//p[contains(text(), 'Cursos')] | //a[contains(text(), 'Cursos')]"
             )
             sidebar_cursos.click()
-            print("✅ Click en 'Cursos' exitoso")
+            log.info("✅ Click en 'Cursos' exitoso")
             time.sleep(5)
             self.driver.save_screenshot("blackboard_despues_click.png")
         except Exception as e:
-            print(f"⚠️ No se pudo hacer click en Cursos: {e}")
-        
-        # 3. Guardar HTML completo
+            log.warning("No se pudo hacer click en Cursos: %s", e)
+
         with open("blackboard_cursos_debug.html", "w", encoding="utf-8") as f:
             f.write(self.driver.page_source)
-        print("📄 HTML guardado en: blackboard_cursos_debug.html")
-        
-        # 4. Buscar y listar todos los <a> relevantes
-        print("\n📋 Links encontrados con 'curso' o 'course':")
+        log.info("📄 HTML guardado en: blackboard_cursos_debug.html")
+
+        log.info("📋 Buscando links de cursos...")
         links = self.driver.find_elements(By.TAG_NAME, "a")
         for link in links:
             texto = link.text.strip()
             href = link.get_attribute("href")
             if texto and href and ("curso" in texto.lower() or "course" in href.lower()):
-                print(f"  - Texto: {texto}")
-                print(f"    URL: {href}")
-                print(f"    Clase: {link.get_attribute('class')}")
-                print()
-        
-        print("✅ Debug completado. Revisa blackboard_cursos_debug.html")
+                log.debug("link curso → texto=%r url=%s clase=%s",
+                          texto, href, link.get_attribute("class"))
+
+        log.info("✅ Debug completado. Revisa blackboard_cursos_debug.html")
         input("Presiona Enter cuando hayas revisado Chrome...")
 
     def cerrar(self):
