@@ -17,6 +17,7 @@ import glob
 from blackboard_commands import listar_mis_cursos, abrir_curso
 
 from logger import get_logger
+import os_compat
 
 log = get_logger(__name__)
 
@@ -227,43 +228,67 @@ def _gmail_enviar(params):
 # ABRIR PROGRAMAS
 # ============================================================
 
+def _abrir_app_simple(nombre_logico, mensaje_ok, mensaje_falla):
+    """Helper común: invoca os_compat.abrir_app y retorna mensaje."""
+    if os_compat.abrir_app(nombre_logico):
+        return mensaje_ok
+    return mensaje_falla
+
+
 def _abrir_chrome(params):
-    os.system("start chrome")
-    return "Abriendo Chrome."
+    return _abrir_app_simple(
+        "chrome", "Abriendo Chrome.",
+        "No encontré Chrome instalado.",
+    )
 
 def _abrir_notepad(params):
-    os.system("notepad")
-    return "Abriendo el bloc de notas."
+    return _abrir_app_simple(
+        "notepad", "Abriendo el editor de texto.",
+        "No encontré un editor de texto instalado.",
+    )
 
 def _abrir_calculadora(params):
-    os.system("calc")
-    return "Abriendo la calculadora."
+    return _abrir_app_simple(
+        "calculadora", "Abriendo la calculadora.",
+        "No encontré una calculadora instalada.",
+    )
 
 def _abrir_explorador(params):
-    os.system("explorer")
-    return "Abriendo el explorador de archivos."
+    return _abrir_app_simple(
+        "explorador", "Abriendo el explorador de archivos.",
+        "No pude abrir el explorador.",
+    )
 
 def _abrir_configuracion(params):
-    os.system("start ms-settings:")
-    return "Abriendo la configuración."
+    return _abrir_app_simple(
+        "configuracion", "Abriendo la configuración.",
+        "No encontré la configuración del sistema.",
+    )
 
 def _abrir_word(params):
-    os.system("start winword")
-    return "Abriendo Word."
+    return _abrir_app_simple(
+        "word", "Abriendo Word.",
+        "No encontré Word ni LibreOffice Writer.",
+    )
 
 def _abrir_excel(params):
-    os.system("start excel")
-    return "Abriendo Excel."
+    return _abrir_app_simple(
+        "excel", "Abriendo Excel.",
+        "No encontré Excel ni LibreOffice Calc.",
+    )
 
 def _abrir_powerpoint(params):
-    os.system("start powerpnt")
-    return "Abriendo PowerPoint."
+    return _abrir_app_simple(
+        "powerpoint", "Abriendo PowerPoint.",
+        "No encontré PowerPoint ni LibreOffice Impress.",
+    )
 
 def _abrir_spotify(params):
     import time
-    os.system(r'start "" "C:\Users\Lenovo\OneDrive\Desktop\Spotify.lnk"')
-    time.sleep(3)  # Esperar 3 segundos a que Spotify inicie
-    return "Abriendo Spotify. Dame un momento para que cargue."
+    if os_compat.abrir_app("spotify"):
+        time.sleep(3)  # Esperar a que Spotify inicie
+        return "Abriendo Spotify. Dame un momento para que cargue."
+    return "No encontré Spotify instalado."
 
 
 # ============================================================
@@ -382,15 +407,15 @@ def _spotify_playlist(params):
 # ============================================================
 
 def _captura_pantalla(params):
-    escritorio = os.path.join(os.path.expanduser("~"), "Desktop")
     ahora = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-    ruta = os.path.join(escritorio, f"captura_{ahora}.png")
+    ruta = str(os_compat.DESKTOP / f"captura_{ahora}.png")
     pyautogui.screenshot(ruta)
     return "Captura guardada en el escritorio."
 
 def _bloquear_pantalla(params):
-    subprocess.Popen("rundll32.exe user32.dll,LockWorkStation", shell=True)
-    return "Bloqueando la pantalla."
+    if os_compat.bloquear_pantalla():
+        return "Bloqueando la pantalla."
+    return "No pude bloquear la pantalla."
 
 
 # ============================================================
@@ -445,38 +470,25 @@ def _bateria(params):
     return f"La batería está al {porcentaje}%{cargando}."
 
 def _apagar_pc(params):
-    subprocess.Popen("shutdown /s /t 60", shell=True)
-    return "La computadora se apagará en 60 segundos. Di cancelar apagado para detenerlo."
+    if os_compat.apagar_pc(60):
+        return "La computadora se apagará en 60 segundos. Di cancelar apagado para detenerlo."
+    return "No pude programar el apagado."
 
 def _cancelar_apagado(params):
-    subprocess.Popen("shutdown /a", shell=True)
-    return "Apagado cancelado."
+    if os_compat.cancelar_apagado():
+        return "Apagado cancelado."
+    return "No había un apagado programado o no pude cancelarlo."
 
 def _vaciar_papelera(params):
-    subprocess.Popen(
-        'powershell -Command "Clear-RecycleBin -Force -ErrorAction SilentlyContinue"',
-        shell=True
-    )
-    return "Papelera vaciada."
+    if os_compat.vaciar_papelera():
+        return "Papelera vaciada."
+    return "No pude vaciar la papelera."
 
 def _modo_oscuro(params):
-    ruta_reg = r"HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\Themes\Personalize"
-    try:
-        resultado = subprocess.run(
-            f'reg query "{ruta_reg}" /v AppsUseLightTheme',
-            shell=True, capture_output=True, text=True
-        )
-        es_oscuro = "0x0" in resultado.stdout
-        nuevo = "1" if es_oscuro else "0"
-        modo = "claro" if es_oscuro else "oscuro"
-        for clave in ["AppsUseLightTheme", "SystemUsesLightTheme"]:
-            subprocess.run(
-                f'reg add "{ruta_reg}" /v {clave} /t REG_DWORD /d {nuevo} /f',
-                shell=True, capture_output=True
-            )
-        return f"Modo {modo} activado."
-    except Exception:
-        return "No pude cambiar el tema de Windows."
+    nuevo_modo = os_compat.modo_oscuro_toggle()
+    if nuevo_modo:
+        return f"Modo {nuevo_modo} activado."
+    return "No pude cambiar el tema del sistema."
 
 
 # ============================================================
@@ -562,20 +574,23 @@ def _buscar_youtube(params):
 # las versiones cambian la carpeta (2024, 2025, etc.).
 # glob permite usar comodines (*) para cubrir varias versiones.
 
+# AutoCAD/Civil 3D/ArcGIS son productos solo Windows. En Linux
+# shutil.which fallará y la función reportará "no encontré".
+# QGIS sí corre en Linux (paquete `qgis` en Ubuntu).
 RUTAS_AUTOCAD = [
     r"C:\Program Files\Autodesk\AutoCAD*\acad.exe",
 ]
 
 RUTAS_CIVIL3D = [
     r"C:\Program Files\Autodesk\AutoCAD*\acad.exe",
-    # Civil 3D comparte el ejecutable de AutoCAD pero con perfil diferente.
-    # En la práctica, se abre igual que AutoCAD si Civil 3D está instalado.
 ]
 
 RUTAS_QGIS = [
     r"C:\Program Files\QGIS*\bin\qgis-bin.exe",
     r"C:\Program Files\QGIS*\bin\qgis.bat",
     r"C:\OSGeo4W\bin\qgis.bat",
+    "/usr/bin/qgis",
+    "/usr/local/bin/qgis",
 ]
 
 RUTAS_ARCGIS = [
@@ -680,9 +695,9 @@ def _abrir_arcgis(params):
 # MANEJO DE ARCHIVOS
 # ============================================================
 
-# Carpeta de proyectos predefinida.
-# Cámbiala a donde tengas tus proyectos de ingeniería.
-CARPETA_PROYECTOS = r"C:\Users\Lenovo\OneDrive\Desktop\Carpeta proyectos"
+# Carpeta de proyectos: resuelta por SO en os_compat (en Linux es
+# ~/Escritorio/Carpeta proyectos, en Windows la ruta histórica).
+CARPETA_PROYECTOS = str(os_compat.CARPETA_PROYECTOS)
 
 
 def _abrir_carpeta_proyectos(params):
@@ -690,50 +705,51 @@ def _abrir_carpeta_proyectos(params):
     carpeta = params.get("carpeta", CARPETA_PROYECTOS)
 
     if os.path.exists(carpeta):
-        os.startfile(carpeta)
-        return f"Abriendo carpeta de proyectos."
+        if os_compat.abrir_path(carpeta):
+            return "Abriendo carpeta de proyectos."
+        return "No pude abrir la carpeta de proyectos."
 
     # Si no existe, la creamos y la abrimos.
     try:
         os.makedirs(carpeta, exist_ok=True)
-        os.startfile(carpeta)
-        return f"Creé y abrí la carpeta de proyectos."
+        if os_compat.abrir_path(carpeta):
+            return "Creé y abrí la carpeta de proyectos."
+        return "Creé la carpeta pero no pude abrirla."
     except OSError:
         return "No pude abrir la carpeta de proyectos."
 
 
 def _abrir_en_carpeta(params):
-    """
-    Abre el explorador en una carpeta específica.
-    Ollama envía: {"carpeta": "documentos"} o {"carpeta": "descargas"}
+    """Abre el explorador en una carpeta del usuario.
+
+    Ollama envía: {"carpeta": "documentos"} o {"carpeta": "descargas"}.
+    Las rutas vienen de os_compat (resueltas por SO y locale).
     """
     destino = params.get("carpeta", "documentos").lower()
 
-    # Mapa de nombres comunes a rutas reales.
-    # os.path.expanduser("~") da "C:\Users\Lenovo".
-    home = os.path.expanduser("~")
     carpetas = {
-        "documentos": os.path.join(home, "Documents"),
-        "descargas": os.path.join(home, "Downloads"),
-        "escritorio": os.path.join(home, "Desktop"),
-        "imágenes": os.path.join(home, "Pictures"),
-        "imagenes": os.path.join(home, "Pictures"),
-        "videos": os.path.join(home, "Videos"),
-        "música": os.path.join(home, "Music"),
-        "musica": os.path.join(home, "Music"),
-        "proyectos": CARPETA_PROYECTOS,
+        "documentos": os_compat.DOCUMENTS,
+        "descargas":  os_compat.DOWNLOADS,
+        "escritorio": os_compat.DESKTOP,
+        "imágenes":   os_compat.PICTURES,
+        "imagenes":   os_compat.PICTURES,
+        "videos":     os_compat.VIDEOS,
+        "vídeos":     os_compat.VIDEOS,
+        "música":     os_compat.MUSIC,
+        "musica":     os_compat.MUSIC,
+        "proyectos":  os_compat.CARPETA_PROYECTOS,
     }
 
     ruta = carpetas.get(destino)
 
-    if ruta and os.path.exists(ruta):
-        os.startfile(ruta)
-        return f"Abriendo la carpeta de {destino}."
+    if ruta and os.path.exists(str(ruta)):
+        if os_compat.abrir_path(ruta):
+            return f"Abriendo la carpeta de {destino}."
 
     # Si no es un nombre conocido, intentar como ruta directa.
     if os.path.exists(destino):
-        os.startfile(destino)
-        return f"Abriendo {destino}."
+        if os_compat.abrir_path(destino):
+            return f"Abriendo {destino}."
 
     return f"No encontré la carpeta '{destino}'."
 
@@ -806,19 +822,21 @@ def _crear_carpeta(params):
 # ============================================================
 
 def _calculadora_cientifica(params):
-    """
-    Abre la calculadora de Windows en modo científico.
+    """Abre la calculadora en modo científico cuando es posible.
 
-    No hay un flag directo para modo científico, pero si la calculadora
-    ya se abrió en modo científico antes, Windows recuerda el modo.
-    Usamos un atajo: abrimos calc y luego enviamos Alt+2 que es el
-    shortcut de teclado para modo científico en la calc de Windows 10/11.
+    En Windows manda Alt+2 después de abrir calc (shortcut de la
+    calculadora moderna para "modo científico"). En Linux no hay
+    shortcut universal, así que solo abrimos la calculadora.
     """
     import time
-    subprocess.Popen("calc", shell=True)
-    time.sleep(1)  # Esperar a que la calculadora abra.
-    pyautogui.hotkey("alt", "2")  # Alt+2 = modo científico.
-    return "Abriendo calculadora científica."
+    if not os_compat.abrir_app("calculadora"):
+        return "No encontré una calculadora instalada."
+
+    if os_compat.IS_WINDOWS:
+        time.sleep(1)
+        pyautogui.hotkey("alt", "2")
+        return "Abriendo calculadora científica."
+    return "Abriendo calculadora."
 
 
 def _convertir_unidades(params):
