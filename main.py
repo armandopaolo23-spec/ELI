@@ -276,7 +276,14 @@ def main() -> None:
             resultados = pensar(texto, hablar_anticipado=_lanzar_tts_anticipado)
             t_pensar = time.time() - t0
 
-            log.debug("[JSON] %s", json.dumps(resultados, ensure_ascii=False))
+            log.debug(
+                "[JSON] %s",
+                json.dumps(
+                    [{k: v for k, v in r.items() if not k.startswith("_")}
+                     for r in resultados],
+                    ensure_ascii=False,
+                ),
+            )
             log.debug("⏱️ pensar: %.2fs", t_pensar)
 
             if len(resultados) > 1:
