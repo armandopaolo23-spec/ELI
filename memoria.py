@@ -31,6 +31,10 @@ import json
 import os
 import datetime
 
+from logger import get_logger
+
+log = get_logger(__name__)
+
 # Ruta del archivo de memoria. Se guarda en la misma carpeta que Eli.
 # Si mueves la carpeta de Eli, la memoria se mueve con él.
 RUTA_MEMORIA = os.path.join(os.path.dirname(__file__), "memoria.json")
@@ -68,7 +72,7 @@ def cargar_memoria():
 
     except (json.JSONDecodeError, IOError):
         # Archivo corrupto o ilegible. Empezar de cero.
-        print("⚠️ memoria.json corrupto. Creando memoria nueva.")
+        log.warning("memoria.json corrupto. Creando memoria nueva.")
         return _memoria_vacia()
 
 
@@ -85,7 +89,7 @@ def guardar_memoria(memoria):
             # ensure_ascii=False permite caracteres como ñ, á, etc.
             json.dump(memoria, archivo, indent=2, ensure_ascii=False)
     except IOError as error:
-        print(f"⚠️ No pude guardar la memoria: {error}")
+        log.warning("No pude guardar la memoria: %s", error)
 
 
 def agregar_resumen(memoria, resumen):

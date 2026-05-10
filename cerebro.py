@@ -17,6 +17,7 @@ import json
 import threading
 import time
 
+from logger import get_logger
 from memoria import (
     cargar_memoria,
     guardar_memoria,
@@ -24,6 +25,8 @@ from memoria import (
     actualizar_perfil,
     memoria_a_texto
 )
+
+log = get_logger(__name__)
 
 # ============================================================
 # GESTOR DE NODOS (multi-endpoint con fallback automático)
@@ -72,11 +75,13 @@ class _GestorNodos:
                 candidato = (anterior + delta) % len(NODOS)
                 if self._ping(NODOS[candidato]):
                     self._idx = candidato
-                    print(f"⚡ Nodo activo → {NODOS[candidato]['nombre']} "
-                          f"({NODOS[candidato]['modelo']})")
+                    log.info(
+                        "⚡ Nodo activo → %s (%s)",
+                        NODOS[candidato]["nombre"], NODOS[candidato]["modelo"],
+                    )
                     self._iniciar_recovery_si_no_corre()
                     return True
-            print("⚠️  Ningún nodo Ollama disponible.")
+            log.warning("Ningún nodo Ollama disponible.")
             return False
 
     def iniciar_recovery(self):
@@ -108,8 +113,10 @@ class _GestorNodos:
                     return  # ya estamos en primario, nada que recuperar
                 if self._ping(NODOS[0]):
                     self._idx = 0
-                    print(f"✅ Nodo primario recuperado → {NODOS[0]['nombre']} "
-                          f"({NODOS[0]['modelo']})")
+                    log.info(
+                        "✅ Nodo primario recuperado → %s (%s)",
+                        NODOS[0]["nombre"], NODOS[0]["modelo"],
+                    )
                     return  # hilo termina; se relanzará si falla de nuevo
 
 
@@ -265,7 +272,7 @@ def precarga_modelo():
         return
 
     for nodo in NODOS:
-        print(f"🔄 Precargando {nodo['nombre']} ({nodo['modelo']})...")
+        log.info("🔄 Precargando %s (%s)...", nodo["nombre"], nodo["modelo"])
         try:
             requests.post(
                 nodo["url_generate"],
@@ -277,9 +284,9 @@ def precarga_modelo():
                 },
                 timeout=30,
             )
-            print(f"✅ {nodo['nombre']} listo.")
+            log.info("✅ %s listo.", nodo["nombre"])
         except Exception as error:
-            print(f"⚠️ {nodo['nombre']} no disponible en precarga: {error}")
+            log.warning("%s no disponible en precarga: %s", nodo["nombre"], error)
 
     _modelo_precargado = True
 
@@ -294,8 +301,11 @@ def inicializar():
 
     _memoria = cargar_memoria()
     texto_memoria = memoria_a_texto(_memoria)
-    print(f"🧠 Memoria cargada: {len(_memoria.get('resumenes', []))} resúmenes, "
-          f"{len(_memoria.get('perfil', {}))} datos de perfil")
+    log.info(
+        "🧠 Memoria cargada: %d resúmenes, %d datos de perfil",
+        len(_memoria.get("resumenes", [])),
+        len(_memoria.get("perfil", {})),
+    )
 
     system_prompt = _construir_system_prompt(texto_memoria)
     historial = [{"role": "system", "content": system_prompt}]
@@ -370,8 +380,10 @@ def pensar(texto):
             return resultado
 
         except (requests.ConnectionError, requests.Timeout) as error:
-            print(f"⚠️ {nodo['nombre']} falló ({error.__class__.__name__}). "
-                  "Intentando nodo alternativo...")
+            log.warning(
+                "%s falló (%s). Intentando nodo alternativo...",
+                nodo["nombre"], error.__class__.__name__,
+            )
             if not _gestor.marcar_fallo():
                 break  # ningún nodo disponible
 
@@ -556,10 +568,10 @@ def generar_resumen_sesion():
         resumen = respuesta.json()["message"]["content"].strip()
         agregar_resumen(_memoria, resumen)
         guardar_memoria(_memoria)
-        print(f"🧠 Resumen guardado: {resumen[:80]}...")
+        log.info("🧠 Resumen guardado: %s...", resumen[:80])
         return resumen
     except Exception as error:
-        print(f"⚠️ No pude generar resumen: {error}")
+        log.warning("No pude generar resumen: %s", error)
         return ""
 
 
@@ -596,9 +608,9 @@ def _extraer_perfil_async(texto_usuario):
         if datos:
             actualizar_perfil(_memoria, datos)
             guardar_memoria(_memoria)
-            print(f"   🧠 Perfil actualizado: {datos}")
+            log.debug("🧠 Perfil actualizado: %s", datos)
     except Exception:
-        pass
+        log.debug("Extracción de perfil falló (silenciado)", exc_info=True)
 
 
 def _construir_system_prompt(texto_memoria):

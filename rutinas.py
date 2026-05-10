@@ -20,6 +20,10 @@ import datetime
 import threading
 import time
 
+from logger import get_logger
+
+log = get_logger(__name__)
+
 # --- Archivo de rutinas ---
 # Se guarda en la misma carpeta que Eli.
 RUTA_RUTINAS = os.path.join(os.path.dirname(__file__), "rutinas.json")
@@ -140,7 +144,7 @@ def cargar_rutinas():
         with open(RUTA_RUTINAS, "r", encoding="utf-8") as f:
             return json.load(f)
     except (json.JSONDecodeError, IOError):
-        print("⚠️ rutinas.json corrupto. Creando archivo nuevo.")
+        log.warning("rutinas.json corrupto. Creando archivo nuevo.")
         return {}
 
 
@@ -150,7 +154,7 @@ def guardar_rutinas(rutinas):
         with open(RUTA_RUTINAS, "w", encoding="utf-8") as f:
             json.dump(rutinas, f, indent=2, ensure_ascii=False)
     except IOError as error:
-        print(f"⚠️ No pude guardar rutinas: {error}")
+        log.warning("No pude guardar rutinas: %s", error)
 
 
 def crear_rutina(nombre, hora, comandos):
@@ -248,7 +252,7 @@ def ejecutar_rutina(nombre, ejecutar_comando_fn, hablar_fn):
 
         respuesta = ejecutar_comando_fn(comando, parametros)
         if respuesta:
-            print(f"   🤖 Rutina [{nombre}]: {respuesta}")
+            log.info("🤖 Rutina [%s]: %s", nombre, respuesta)
             hablar_fn(respuesta)
 
         time.sleep(1.5)  # Pausa entre comandos.
@@ -288,7 +292,7 @@ class SchedulerRutinas:
         self.corriendo = True
         self.hilo = threading.Thread(target=self._loop, daemon=True)
         self.hilo.start()
-        print("⏰ Scheduler de rutinas iniciado.")
+        log.info("⏰ Scheduler de rutinas iniciado.")
 
     def detener(self):
         """Detiene el scheduler."""
@@ -300,7 +304,7 @@ class SchedulerRutinas:
             try:
                 self._verificar_rutinas()
             except Exception as error:
-                print(f"⚠️ Error en scheduler: {error}")
+                log.warning("Error en scheduler: %s", error, exc_info=True)
 
             # Dormir 30 segundos entre verificaciones.
             # Usamos un loop corto para que detener() responda rápido.
@@ -338,7 +342,7 @@ class SchedulerRutinas:
 
             # ¿Coincide la hora? (comparación exacta HH:MM)
             if hora_actual == hora_rutina:
-                print(f"\n⏰ Ejecutando rutina programada: {nombre}")
+                log.info("⏰ Ejecutando rutina programada: %s", nombre)
                 self._ejecutadas_hoy.add(nombre)
                 ejecutar_rutina(
                     nombre,

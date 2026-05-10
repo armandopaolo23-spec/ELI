@@ -13,3 +13,7 @@ blackboard_*.png
 # Python cache
 __pycache__/
 *.pyc
+
+# Logs
+logs/
+*.log

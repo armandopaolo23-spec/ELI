@@ -14,6 +14,7 @@ import json
 import time
 import threading
 
+from logger import get_logger
 from wake_word import esperar_wake_word
 from escuchar import escuchar, calibrar_una_vez, _q
 from cerebro import pensar, limpiar_historial, inicializar, generar_resumen_sesion, precarga_modelo
@@ -28,6 +29,8 @@ from rutinas import (
     eliminar_rutina,
     SchedulerRutinas
 )
+
+log = get_logger(__name__)
 
 TIMEOUT_INACTIVIDAD = 600
 MAX_FALLOS_CONSECUTIVOS = 3
@@ -107,7 +110,7 @@ def _procesar_resultados(resultados, gui):
             if respuesta:
                 gui.cambiar_estado("hablando")
                 gui.mostrar_eli(respuesta)
-                print(f"🤖 Eli: {respuesta}")
+                log.info("🤖 Eli: %s", respuesta)
                 hablar(respuesta)
             else:
                 gui.cambiar_estado("hablando")
@@ -118,7 +121,7 @@ def _procesar_resultados(resultados, gui):
             respuesta = resultado.get("respuesta", "No supe qué decir.")
             gui.cambiar_estado("hablando")
             gui.mostrar_eli(respuesta)
-            print(f"🤖 Eli: {respuesta}")
+            log.info("🤖 Eli: %s", respuesta)
             hablar(respuesta)
 
         if i < total - 1:
@@ -155,7 +158,7 @@ def main():
     hilo_modelo.join()
 
     t_init = time.time() - t_inicio_total
-    print(f"⚡ Inicialización completa en {t_init:.1f}s")
+    log.info("⚡ Inicialización completa en %.1fs", t_init)
 
     # --- SALUDO ---
     gui.cambiar_estado("hablando")
@@ -222,7 +225,7 @@ def main():
             fallos_consecutivos = 0
             ultima_interaccion = time.time()
             gui.mostrar_usuario(texto)
-            print(f'🎤 Tú: "{texto}" (escucha: {t_escuchar:.2f}s)')
+            log.info('🎤 Tú: "%s" (escucha: %.2fs)', texto, t_escuchar)
 
             # ¿Dormir?
             if texto.startswith(COMANDOS_DORMIR):
@@ -244,7 +247,7 @@ def main():
             if respuesta_rutina is not None:
                 gui.cambiar_estado("hablando")
                 gui.mostrar_eli(respuesta_rutina)
-                print(f"🤖 Eli: {respuesta_rutina}")
+                log.info("🤖 Eli: %s", respuesta_rutina)
                 hablar(respuesta_rutina)
                 continue
 
@@ -254,30 +257,32 @@ def main():
             resultados = pensar(texto)
             t_pensar = time.time() - t0
 
-            print(f"   [JSON] {json.dumps(resultados, ensure_ascii=False)}")
-            print(f"   ⏱️ pensar: {t_pensar:.2f}s")
+            log.debug("[JSON] %s", json.dumps(resultados, ensure_ascii=False))
+            log.debug("⏱️ pensar: %.2fs", t_pensar)
 
             if len(resultados) > 1:
-                print(f"   📋 {len(resultados)} comandos en secuencia")
+                log.debug("📋 %d comandos en secuencia", len(resultados))
 
             # --- Timing: hablar ---
             t0 = time.time()
             _procesar_resultados(resultados, gui)
             t_hablar = time.time() - t0
 
-            print(f"   ⏱️ total turno: escuchar {t_escuchar:.2f}s "
-                  f"+ pensar {t_pensar:.2f}s + hablar {t_hablar:.2f}s "
-                  f"= {t_escuchar + t_pensar + t_hablar:.2f}s")
+            log.debug(
+                "⏱️ total turno: escuchar %.2fs + pensar %.2fs + hablar %.2fs = %.2fs",
+                t_escuchar, t_pensar, t_hablar,
+                t_escuchar + t_pensar + t_hablar,
+            )
 
         if not activo:
             break
 
     # --- Limpieza ---
     scheduler.detener()
-    print("\n🧠 Guardando memoria de sesión...")
+    log.info("🧠 Guardando memoria de sesión...")
     gui.mostrar_sistema("Guardando memoria...")
     generar_resumen_sesion()
-    print("🧠 Memoria guardada.")
+    log.info("🧠 Memoria guardada.")
     gui.detener()
 
 
