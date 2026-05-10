@@ -2,6 +2,10 @@ import requests
 import json
 from blackboard_auth import BlackboardAuth
 
+from logger import get_logger
+
+log = get_logger(__name__)
+
 
 class BlackboardAPI:
     def __init__(self):
@@ -35,15 +39,15 @@ class BlackboardAPI:
             
             # Si falla por auth, renovar cookies y reintentar
             if response.status_code in [401, 403]:
-                print("⚠️  Cookies expiradas, renovando...")
+                log.warning("Cookies expiradas, renovando...")
                 self.auth.obtener_cookies(forzar_renovar=True)
                 self._cargar_cookies_en_session()
                 response = self.session.request(method, url, **kwargs)
-            
+
             response.raise_for_status()
             return response
         except Exception as e:
-            print(f"❌ Error en request: {e}")
+            log.error("Error en request a Blackboard: %s", e)
             raise
     
     def listar_cursos(self):
