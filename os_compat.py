@@ -12,6 +12,8 @@ Diseño:
   primero el binario más común, luego flatpak/snap si aplica.
 """
 
+from __future__ import annotations
+
 import os
 import shutil
 import subprocess
@@ -34,7 +36,7 @@ HOME = Path.home()
 # CARPETAS DEL USUARIO
 # ============================================================
 
-def _xdg_user_dir(nombre):
+def _xdg_user_dir(nombre: str) -> Path:
     """Resuelve carpeta XDG (Documents, Downloads, etc.) en Linux.
 
     Usa xdg-user-dir si está disponible (respeta locale del SO, así
@@ -92,7 +94,7 @@ else:
 # ABRIR ARCHIVO/CARPETA EN APP DEFAULT
 # ============================================================
 
-def abrir_path(ruta):
+def abrir_path(ruta: str | Path) -> bool:
     """Abre un archivo o carpeta con la app por default del SO.
 
     Retorna True si lanzó algo, False si no pudo.
@@ -163,7 +165,7 @@ _APPS = {
 }
 
 
-def abrir_app(nombre):
+def abrir_app(nombre: str) -> bool:
     """Lanza una app por nombre lógico (chrome, notepad, etc.).
 
     Retorna True si encontró un lanzador y arrancó el proceso.
@@ -211,7 +213,7 @@ def abrir_app(nombre):
 # ACCIONES DEL SISTEMA
 # ============================================================
 
-def bloquear_pantalla():
+def bloquear_pantalla() -> bool:
     """Bloquea la pantalla. Retorna True si lanzó la acción."""
     if IS_WINDOWS:
         try:
@@ -248,7 +250,7 @@ def bloquear_pantalla():
     return False
 
 
-def apagar_pc(segundos=60):
+def apagar_pc(segundos: int = 60) -> bool:
     """Programa apagado. Retorna True si lanzó la acción."""
     if IS_WINDOWS:
         try:
@@ -275,7 +277,7 @@ def apagar_pc(segundos=60):
     return False
 
 
-def cancelar_apagado():
+def cancelar_apagado() -> bool:
     """Cancela un apagado programado. Retorna True si lo cancela."""
     if IS_WINDOWS:
         try:
@@ -292,7 +294,7 @@ def cancelar_apagado():
     return False  # macOS no tiene cancel directo seguro
 
 
-def vaciar_papelera():
+def vaciar_papelera() -> bool:
     """Vacía la papelera del usuario. Retorna True si la operación
     completó (también True si la papelera ya estaba vacía)."""
     if IS_WINDOWS:
@@ -329,7 +331,7 @@ def vaciar_papelera():
     return False
 
 
-def modo_oscuro_toggle():
+def modo_oscuro_toggle() -> str | None:
     """Alterna modo oscuro/claro. Retorna 'oscuro', 'claro', o None
     si no se pudo cambiar."""
     if IS_WINDOWS:

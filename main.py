@@ -10,9 +10,12 @@
 # consola cuánto tarda cada etapa y diagnosticar cuellos de botella.
 # ============================================================
 
+from __future__ import annotations
+
 import json
 import time
 import threading
+from typing import Any
 
 import config as cfg
 from logger import get_logger
@@ -63,7 +66,7 @@ FRASES_LISTAR_RUTINAS = (
 )
 
 
-def _manejar_rutinas(texto, gui):
+def _manejar_rutinas(texto: str, gui: Any) -> str | None:
     """Verifica si el texto es un comando de rutinas."""
     for prefijo in PREFIJOS_CREAR_RUTINA:
         if texto.startswith(prefijo):
@@ -94,7 +97,7 @@ def _manejar_rutinas(texto, gui):
     return None
 
 
-def _lanzar_tts_anticipado(texto):
+def _lanzar_tts_anticipado(texto: str) -> threading.Thread:
     """Arranca hablar(texto) en un hilo daemon y retorna el Thread.
 
     Lo usa cerebro.pensar para empezar a hablar la respuesta conversacional
@@ -107,7 +110,7 @@ def _lanzar_tts_anticipado(texto):
     return hilo
 
 
-def _procesar_resultados(resultados, gui):
+def _procesar_resultados(resultados: list[dict[str, Any]], gui: Any) -> None:
     """Ejecuta una lista de comandos/respuestas en secuencia."""
     total = len(resultados)
 
@@ -144,7 +147,7 @@ def _procesar_resultados(resultados, gui):
             time.sleep(cfg.DELAY_ENTRE_COMANDOS)
 
 
-def main():
+def main() -> None:
     t_inicio_total = time.time()
 
     gui = InterfazEli()

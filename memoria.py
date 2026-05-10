@@ -27,9 +27,12 @@
 # }
 # ============================================================
 
+from __future__ import annotations
+
 import json
 import os
 import datetime
+from typing import Any
 
 from logger import get_logger
 
@@ -45,7 +48,7 @@ RUTA_MEMORIA = os.path.join(os.path.dirname(__file__), "memoria.json")
 MAX_RESUMENES = 20
 
 
-def cargar_memoria():
+def cargar_memoria() -> dict[str, Any]:
     """
     Lee el archivo memoria.json y retorna su contenido.
 
@@ -76,7 +79,7 @@ def cargar_memoria():
         return _memoria_vacia()
 
 
-def guardar_memoria(memoria):
+def guardar_memoria(memoria: dict[str, Any]) -> None:
     """
     Escribe el diccionario de memoria al archivo JSON.
 
@@ -92,7 +95,7 @@ def guardar_memoria(memoria):
         log.warning("No pude guardar la memoria: %s", error)
 
 
-def agregar_resumen(memoria, resumen):
+def agregar_resumen(memoria: dict[str, Any], resumen: str) -> None:
     """
     Agrega un resumen de sesión a la memoria.
 
@@ -116,7 +119,7 @@ def agregar_resumen(memoria, resumen):
         memoria["resumenes"] = memoria["resumenes"][-MAX_RESUMENES:]
 
 
-def actualizar_perfil(memoria, perfil_nuevo):
+def actualizar_perfil(memoria: dict[str, Any], perfil_nuevo: dict[str, Any]) -> None:
     """
     Actualiza el perfil del usuario con datos nuevos.
 
@@ -143,7 +146,7 @@ def actualizar_perfil(memoria, perfil_nuevo):
             memoria["perfil"][clave] = valor
 
 
-def memoria_a_texto(memoria):
+def memoria_a_texto(memoria: dict[str, Any]) -> str:
     """
     Convierte la memoria a texto que se inyecta en el system prompt.
 
@@ -194,7 +197,7 @@ def memoria_a_texto(memoria):
     return "\n\n".join(partes)
 
 
-def _memoria_vacia():
+def _memoria_vacia() -> dict[str, Any]:
     """Retorna una estructura de memoria vacía."""
     return {
         "perfil": {},

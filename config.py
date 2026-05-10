@@ -15,14 +15,17 @@ Si una variable de entorno no se puede convertir al tipo esperado,
 se loguea un warning y se usa el default.
 """
 
+from __future__ import annotations
+
 import os
+from typing import Any
 
 from logger import get_logger
 
 log = get_logger(__name__)
 
 
-def _env(nombre, default, tipo=str):
+def _env(nombre: str, default: Any, tipo: type = str) -> Any:
     """Lee ``ELI_<nombre>`` con conversión segura."""
     valor = os.environ.get(f"ELI_{nombre}")
     if valor is None:

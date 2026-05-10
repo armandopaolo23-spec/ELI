@@ -17,11 +17,14 @@
 #     con el playback de la N.
 # ============================================================
 
+from __future__ import annotations
+
 import asyncio
 import io
 import queue
 import re
 import threading
+from typing import Any
 
 import edge_tts
 import sounddevice as sd
@@ -40,7 +43,7 @@ _BUFFER_ORACIONES = cfg.TTS_BUFFER_ORACIONES
 _FIN_AUDIO = object()
 
 
-def hablar(texto):
+def hablar(texto: str) -> None:
     """Convierte texto a voz y lo reproduce.
 
     Si el texto tiene varias oraciones, las pipeliniza: sintetiza
@@ -79,7 +82,7 @@ def hablar(texto):
     hilo.join(timeout=1.0)
 
 
-def _dividir_oraciones(texto):
+def _dividir_oraciones(texto: str) -> list[str]:
     """Divide texto en oraciones, fusionando fragmentos muy cortos."""
     partes = re.split(r"(?<=[.!?…])\s+", texto.strip())
     partes = [p.strip() for p in partes if p.strip()]
@@ -105,7 +108,7 @@ def _dividir_oraciones(texto):
     return fusionadas
 
 
-def _correr_productor(oraciones, cola):
+def _correr_productor(oraciones: list[str], cola: queue.Queue) -> None:
     """Wrapper que lanza el productor async y captura excepciones."""
     try:
         asyncio.run(_productor(oraciones, cola))
@@ -117,7 +120,7 @@ def _correr_productor(oraciones, cola):
             pass
 
 
-async def _productor(oraciones, cola):
+async def _productor(oraciones: list[str], cola: queue.Queue) -> None:
     """Sintetiza cada oración y la pone en la cola en orden."""
     for oracion in oraciones:
         audio = await _sintetizar(oracion)
@@ -126,7 +129,7 @@ async def _productor(oraciones, cola):
     cola.put(_FIN_AUDIO)
 
 
-async def _reproducir_una(texto):
+async def _reproducir_una(texto: str) -> None:
     """Camino sin pipeline: una sola oración."""
     audio = await _sintetizar(texto)
     if audio is None:
@@ -136,10 +139,12 @@ async def _reproducir_una(texto):
     sd.wait()
 
 
-async def _sintetizar(texto):
+async def _sintetizar(texto: str) -> tuple[Any, int] | None:
     """Genera audio MP3 con edge-tts y lo decodifica a numpy.
 
-    Retorna (datos, frecuencia) o None si no se generó audio.
+    Retorna ``(datos, frecuencia)`` o ``None`` si no se generó audio.
+    El primer elemento es ``np.ndarray``; lo dejamos como ``Any`` para
+    no atar este módulo a numpy en su firma.
     """
     buffer = io.BytesIO()
     comunicador = edge_tts.Communicate(texto, VOZ)
