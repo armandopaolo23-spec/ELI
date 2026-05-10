@@ -318,11 +318,19 @@ def inicializar():
 # PENSAR (con streaming)
 # ============================================================
 
-def pensar(texto):
+def pensar(texto, hablar_anticipado=None):
     """
     Envía el texto a Ollama con STREAMING y retorna la respuesta.
     Usa el nodo activo del gestor; si falla, conmuta automáticamente al siguiente.
     SIEMPRE retorna una lista de dicts.
+
+    Args:
+        texto: Lo que dijo el usuario.
+        hablar_anticipado: Callable opcional invocado con el texto de la respuesta
+            tan pronto como sea extraíble del stream (antes de que el JSON cierre).
+            Debe retornar un threading.Thread (o None). Si retorna un Thread,
+            se adjunta al resultado como "_hablar_thread" para que el caller
+            haga join en vez de hablar dos veces.
     """
     global _memoria
 
@@ -346,6 +354,7 @@ def pensar(texto):
             respuesta.raise_for_status()
 
             texto_acumulado = ""
+            hilo_anticipado = None  # Se setea solo si disparamos early-speak.
 
             for linea in respuesta.iter_lines(decode_unicode=True):
                 if not linea:
@@ -361,14 +370,33 @@ def pensar(texto):
                 token = chunk.get("message", {}).get("content", "")
                 texto_acumulado += token
 
+                # Early-speak: dispara TTS en cuanto el campo "respuesta"
+                # esté completo, sin esperar a que cierre el JSON. Solo
+                # para conversación (comando=ninguno) y una sola vez.
+                if hablar_anticipado is not None and hilo_anticipado is None:
+                    respuesta_temprana = _intentar_extraer_respuesta_temprana(
+                        texto_acumulado
+                    )
+                    if respuesta_temprana:
+                        try:
+                            hilo_anticipado = hablar_anticipado(respuesta_temprana)
+                        except Exception:
+                            log.warning(
+                                "hablar_anticipado lanzó excepción", exc_info=True
+                            )
+                            hilo_anticipado = None
+
                 resultado_temprano = _intentar_parseo_temprano(texto_acumulado)
                 if resultado_temprano is not None:
                     historial.append({"role": "assistant", "content": texto_acumulado})
+                    # Cierra el socket en vez de drenar línea por línea
+                    # (drenar añadía 100-300ms muertos por turno).
                     try:
-                        for _ in respuesta.iter_lines():
-                            pass
+                        respuesta.close()
                     except Exception:
                         pass
+                    if hilo_anticipado is not None and resultado_temprano:
+                        resultado_temprano[0]["_hablar_thread"] = hilo_anticipado
                     return resultado_temprano
 
             historial.append({"role": "assistant", "content": texto_acumulado})
@@ -376,6 +404,9 @@ def pensar(texto):
 
             if len(resultado) == 1 and resultado[0].get("comando") == "ninguno":
                 _extraer_perfil_async(texto)
+
+            if hilo_anticipado is not None and resultado:
+                resultado[0]["_hablar_thread"] = hilo_anticipado
 
             return resultado
 
@@ -394,6 +425,49 @@ def pensar(texto):
     return [{"comando": "ninguno",
              "respuesta": "No puedo conectar con ningún servidor de IA. "
                           "Verifica que Ollama esté corriendo."}]
+
+
+# Regex pre-compiladas para extracción temprana.
+import re as _re
+_RX_THINK = _re.compile(r"<think>.*?</think>", _re.DOTALL)
+_RX_COMANDO_NINGUNO = _re.compile(r'"comando"\s*:\s*"ninguno"')
+# (?:[^"\\]|\\.)*  → cualquier char salvo " o \, o un escape \X completo.
+# Solo machea cuando la comilla de cierre es real (no escapada).
+_RX_RESPUESTA = _re.compile(r'"respuesta"\s*:\s*"((?:[^"\\]|\\.)*)"')
+
+
+def _intentar_extraer_respuesta_temprana(texto):
+    """
+    Detecta si el stream parcial ya contiene un campo "respuesta"
+    completo dentro de una respuesta conversacional (comando=ninguno).
+
+    Permite disparar TTS antes de que el JSON cierre, ahorrando
+    100-300ms por turno conversacional.
+
+    Retorna el texto de la respuesta (decodificado de JSON) o None.
+    """
+    if "<think>" in texto:
+        if "</think>" not in texto:
+            return None
+        texto = _RX_THINK.sub("", texto)
+
+    if not _RX_COMANDO_NINGUNO.search(texto):
+        return None
+
+    match = _RX_RESPUESTA.search(texto)
+    if not match:
+        return None
+
+    crudo = match.group(1)
+    if not crudo.strip():
+        return None
+
+    # Decodificar escapes JSON estándar (\n, \", \\, \uXXXX) usando
+    # json.loads sobre la cadena re-envuelta entre comillas.
+    try:
+        return json.loads(f'"{crudo}"')
+    except (json.JSONDecodeError, ValueError):
+        return None
 
 
 def _intentar_parseo_temprano(texto):

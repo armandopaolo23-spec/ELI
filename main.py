@@ -97,6 +97,19 @@ def _manejar_rutinas(texto, gui):
     return None
 
 
+def _lanzar_tts_anticipado(texto):
+    """Arranca hablar(texto) en un hilo daemon y retorna el Thread.
+
+    Lo usa cerebro.pensar para empezar a hablar la respuesta conversacional
+    en cuanto sea extraíble del stream, sin esperar que cierre el JSON.
+    El Thread vuelve adjunto al resultado y _procesar_resultados hace join
+    en lugar de re-hablar.
+    """
+    hilo = threading.Thread(target=hablar, args=(texto,), daemon=True)
+    hilo.start()
+    return hilo
+
+
 def _procesar_resultados(resultados, gui):
     """Ejecuta una lista de comandos/respuestas en secuencia."""
     total = len(resultados)
@@ -104,6 +117,7 @@ def _procesar_resultados(resultados, gui):
     for i, resultado in enumerate(resultados):
         comando = resultado.get("comando", "ninguno")
         parametros = resultado.get("parametros", {})
+        hilo_anticipado = resultado.pop("_hablar_thread", None)
 
         if comando != "ninguno":
             respuesta = ejecutar_comando(comando, parametros)
@@ -122,7 +136,12 @@ def _procesar_resultados(resultados, gui):
             gui.cambiar_estado("hablando")
             gui.mostrar_eli(respuesta)
             log.info("🤖 Eli: %s", respuesta)
-            hablar(respuesta)
+            if hilo_anticipado is not None:
+                # Ya empezó a hablar antes de que cerrara el JSON;
+                # solo esperamos a que termine para no escucharnos a nosotros.
+                hilo_anticipado.join()
+            else:
+                hablar(respuesta)
 
         if i < total - 1:
             time.sleep(DELAY_ENTRE_COMANDOS)
@@ -254,7 +273,7 @@ def main():
             # --- Timing: pensar ---
             gui.cambiar_estado("pensando")
             t0 = time.time()
-            resultados = pensar(texto)
+            resultados = pensar(texto, hablar_anticipado=_lanzar_tts_anticipado)
             t_pensar = time.time() - t0
 
             log.debug("[JSON] %s", json.dumps(resultados, ensure_ascii=False))
