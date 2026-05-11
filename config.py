@@ -70,9 +70,9 @@ MIC_WARMUP_SECONDS      = _env("MIC_WARMUP_SECONDS", 0.6, float)
 # ESCUCHA
 # ============================================================
 MIC_UMBRAL              = _env("MIC_UMBRAL", 0.008, float)
-ESCUCHA_SILENCIO_CORTE  = _env("ESCUCHA_SILENCIO_CORTE", 1.5, float)
+ESCUCHA_SILENCIO_CORTE  = _env("ESCUCHA_SILENCIO_CORTE", 0.8, float)
 ESCUCHA_ESPERA_MAXIMA   = _env("ESCUCHA_ESPERA_MAXIMA", 8.0, float)
-ESCUCHA_DURACION_MAXIMA = _env("ESCUCHA_DURACION_MAXIMA", 15.0, float)
+ESCUCHA_DURACION_MAXIMA = _env("ESCUCHA_DURACION_MAXIMA", 6.0, float)
 ESCUCHA_CHUNK           = _env("ESCUCHA_CHUNK", 0.3, float)
 
 # ============================================================
