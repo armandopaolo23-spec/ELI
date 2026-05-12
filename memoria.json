@@ -11,6 +11,34 @@
     {
       "fecha": "2026-04-10 17:36",
       "contenido": "El usuario pidió reproducir una canción de rock y luego específicamente la canción \"ebrio de amor\". Eli respondió mostrándose insuficiente para realizar una recomendación precisa y solicitando más información sobre las preferencias musicales del usuario. Luego, el usuario reproduce la canción, ajusta el volumen y pregunta si puede saber la opinión de Eli. Finalmente, Eli busca una canción similar a \"ebrio de amor\"."
+    },
+    {
+      "fecha": "2026-05-12 11:46",
+      "contenido": "El usuario pidió una frase de buenos días con estilo personal, y Eli respondió con una metáfora científica. El usuario luego preguntó sobre \"dónde es\" y solicitó una suscripción, a lo que Eli rechazó con humor y referencias a datos."
+    },
+    {
+      "fecha": "2026-05-12 11:54",
+      "contenido": "El usuario pidió una frase de buenos días con personalidad, luego interactuó con variaciones de \"abra y volví\", mostrando un patrón de acceso inestable y ruidoso, tocando temas de conexión, hora y estabilidad de datos. Se incluyeron datos personales como el estado de conexión y variabilidad del usuario."
+    },
+    {
+      "fecha": "2026-05-12 12:01",
+      "contenido": "El usuario pidió una frase de buenos días con personalidad, pero luego realizó múltiples consultas sin contexto claro, como \"gobie\", \"ahorita 35\" o \"aurel 45\", que Eli rechaza por falta de datos suficientes. Se tocó el tema de la personalidad, el uso de datos y el límite de contexto en las respuestas."
+    },
+    {
+      "fecha": "2026-05-12 12:05",
+      "contenido": "El usuario pidió una frase de buenos días corta y personal, con enfoque en una actitud neutral y equilibrada. Se tocó el tema de gratitud, pero fue rechazado como irrelevante, destacando que los datos necesitan precisión, no emociones. Se mantuvo el tono objetivo y frío, sin comprometer la claridad o neutralidad."
+    },
+    {
+      "fecha": "2026-05-12 17:42",
+      "contenido": "El usuario pidió una frase de buenos días breve y personal, pero también solicitó acceder a funciones como ver la hora, abrir Google y suscribirse, lo que involucra temas de tiempo, navegación y límites de acceso, con datos personales implícitos como el rendimiento en el manejo del tiempo."
+    },
+    {
+      "fecha": "2026-05-12 17:46",
+      "contenido": "El usuario pidió una frase de buenos días corta y personal, luego solicitó abrir Chrome, consultó la temperatura sin especificar ubicación, y finalmente pidió la temperatura en Ica, proporcionando así datos personales y temas de clima y navegación."
+    },
+    {
+      "fecha": "2026-05-12 17:56",
+      "contenido": "El usuario pidió una frase de buenos días con personalidad, pero el sistema responde desde un enfoque técnico, enfatizando estabilidad de datos y limitaciones de funciones como suscribirse o acceder a servicios. Se tocan temas de emociones, acciones de navegación y límites del sistema en términos de autenticación y medición."
     }
   ]
 }

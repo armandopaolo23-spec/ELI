@@ -23,6 +23,7 @@ from wake_word import esperar_wake_word
 from escuchar import escuchar, calibrar_una_vez, _q
 from cerebro import pensar, limpiar_historial, inicializar, generar_resumen_sesion, precarga_modelo
 from hablar import hablar
+import vad_detector
 from pc_control import ejecutar_comando, configurar_voz, _consultar_clima
 from interfaz import InterfazEli
 import whisper_stt
@@ -172,7 +173,9 @@ def main() -> None:
 
     # Hilo 3: precargar Whisper en GPU (~3-5 seg, depende del tamaño).
     hilo_whisper = threading.Thread(target=whisper_stt.precarga)
+    hilo_vad = threading.Thread(target=vad_detector.precarga)
     hilo_whisper.start()
+    hilo_vad.start()
 
     # Hilo principal: cargar memoria + construir prompt (~0.1 seg).
     inicializar()
@@ -181,6 +184,7 @@ def main() -> None:
     hilo_mic.join()
     hilo_modelo.join()
     hilo_whisper.join()
+    hilo_vad.join()
 
     t_init = time.time() - t_inicio_total
     log.info("⚡ Inicialización completa en %.1fs", t_init)

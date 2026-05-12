@@ -118,3 +118,11 @@ MODELO_PCV = _env("MODELO_PCV", "qwen2.5:3b", str)
 # ============================================================
 MODELO_PCN = _env("MODELO_PCN", "eli-fast", str)
 MODELO_PCV = _env("MODELO_PCV", "qwen2.5:3b", str)
+
+# ============================================================
+# SILERO VAD (Voice Activity Detection)
+# ============================================================
+VAD_TIMEOUT_INICIO = _env("VAD_TIMEOUT_INICIO", 8.0, float)
+VAD_MIN_SILENCE_MS = _env("VAD_MIN_SILENCE_MS", 300, int)
+VAD_THRESHOLD = _env("VAD_THRESHOLD", 0.5, float)
+VAD_SPEECH_PAD_MS = _env("VAD_SPEECH_PAD_MS", 100, int)
