@@ -52,6 +52,8 @@ DELAY_ENTRE_COMANDOS    = _env("DELAY_ENTRE_COMANDOS", 1.5, float)
 # ============================================================
 # OLLAMA / CEREBRO
 # ============================================================
+MODELO_PCN              = _env("MODELO_PCN", "eli-fast")
+MODELO_PCV              = _env("MODELO_PCV", "qwen2.5:3b")
 TIMEOUT_OLLAMA          = _env("TIMEOUT_OLLAMA", 60, int)
 TIMEOUT_OLLAMA_RESUMEN  = _env("TIMEOUT_OLLAMA_RESUMEN", 30, int)
 TIMEOUT_OLLAMA_PERFIL   = _env("TIMEOUT_OLLAMA_PERFIL", 15, int)
