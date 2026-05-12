@@ -87,6 +87,14 @@ WHISPER_IDIOMA          = _env("WHISPER_IDIOMA", "es")
 WHISPER_BEAM_SIZE       = _env("WHISPER_BEAM_SIZE", 1, int)
 
 # ============================================================
+# VAD (Silero — detección de fin de habla)
+# ============================================================
+VAD_TIMEOUT_INICIO      = _env("VAD_TIMEOUT_INICIO", 8.0, float)
+VAD_MIN_SILENCE_MS      = _env("VAD_MIN_SILENCE_MS", 300, int)
+VAD_THRESHOLD           = _env("VAD_THRESHOLD", 0.5, float)
+VAD_SPEECH_PAD_MS       = _env("VAD_SPEECH_PAD_MS", 100, int)
+
+# ============================================================
 # WAKE WORD
 # ============================================================
 WAKE_UMBRAL             = _env("WAKE_UMBRAL", 0.005, float)
