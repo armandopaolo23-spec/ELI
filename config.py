@@ -112,3 +112,9 @@ CIUDAD_CLIMA            = _env("CIUDAD_CLIMA", "Cajamarca")
 # ============================================================
 MODELO_PCN = _env("MODELO_PCN", "eli-fast", str)
 MODELO_PCV = _env("MODELO_PCV", "qwen2.5:3b", str)
+
+# ============================================================
+# MODELOS OLLAMA
+# ============================================================
+MODELO_PCN = _env("MODELO_PCN", "eli-fast", str)
+MODELO_PCV = _env("MODELO_PCV", "qwen2.5:3b", str)
