@@ -29,6 +29,7 @@ _DEPS_STUB = (
     "pyautogui",
     "psutil",
     "speech_recognition",
+    "faster_whisper",
     # Deps de integraciones (sólo necesarias para que comandos/ importe
     # sin explotar; los handlers nunca se llaman en tests).
     "spotipy",

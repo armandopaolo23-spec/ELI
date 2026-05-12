@@ -1,36 +1,30 @@
 # ============================================================
 # escuchar.py — Escucha optimizada para Eli
 #
-# OPTIMIZACIÓN 1: Downsample 44100Hz → 16000Hz antes de enviar
-#   a Google. El audio de voz solo necesita 16kHz. Esto reduce
-#   el tamaño del archivo WAV ~2.75x, haciendo el upload a
-#   Google ~2.75x más rápido.
+# OPTIMIZACIÓN 1: Downsample 44100Hz → 16000Hz. Whisper requiere
+#   16kHz; resamplear acá ahorra trabajo dentro del modelo.
 #
 # OPTIMIZACIÓN 2: Recortar el silencio final. Sabemos que hay
 #   ~1.5 seg de silencio al final (así detectamos el fin de habla).
-#   Enviamos ese silencio a Google por nada. Lo recortamos.
+#   Lo recortamos antes de transcribir.
 #
-# OPTIMIZACIÓN 3: BytesIO en vez de archivo temporal. Igual que
-#   hablar.py, evitamos el disco.
-#
-# Ganancia total: ~300-600ms menos en el reconocimiento.
+# OPTIMIZACIÓN 3: STT 100% local con faster-whisper en GPU.
+#   Antes: SpeechRecognition+Google → 2-5s + requería internet.
+#   Ahora: Whisper small en CUDA → 200-400ms, offline, consistente.
 # ============================================================
 
 from __future__ import annotations
 
-from typing import Any
-
-import sounddevice as sd
-import numpy as np
-import scipy.io.wavfile as wav
-import scipy.signal       # Para resampleo (downsample).
-import speech_recognition as sr
-import io                  # BytesIO para evitar disco.
-import os
 import queue
 import time
+from typing import Any
+
+import numpy as np
+import scipy.signal
+import sounddevice as sd
 
 import config as cfg
+import whisper_stt
 from logger import get_logger
 
 log = get_logger(__name__)
@@ -38,7 +32,7 @@ log = get_logger(__name__)
 # Aliases locales para legibilidad. Todos los valores vienen de config
 # y pueden sobreescribirse con ELI_* env vars.
 SAMPLERATE = cfg.SAMPLERATE
-SAMPLERATE_GOOGLE = cfg.SAMPLERATE_GOOGLE
+SAMPLERATE_WHISPER = cfg.SAMPLERATE_GOOGLE   # 16000 Hz; el nombre se mantiene por compat.
 WARMUP_SECONDS = cfg.MIC_WARMUP_SECONDS
 UMBRAL = cfg.MIC_UMBRAL
 SILENCIO_PARA_CORTAR = cfg.ESCUCHA_SILENCIO_CORTE
@@ -49,7 +43,7 @@ CHUNK = cfg.ESCUCHA_CHUNK
 # --- Estado del stream ---
 
 _stream = None
-_q = queue.Queue()
+_q: queue.Queue = queue.Queue()
 
 
 def _callback(indata: Any, frames: int, time_info: Any, status: Any) -> None:
@@ -91,8 +85,8 @@ def _leer_chunk() -> Any:
 
 def escuchar() -> str:
     """
-    Escucha al usuario con detección inteligente de voz.
-    Optimizada: downsample + trim + BytesIO.
+    Escucha al usuario con detección inteligente de voz y transcribe
+    con Whisper local.
 
     Retorna:
         str: Texto reconocido en minúsculas, o "" si no entendió.
@@ -107,7 +101,7 @@ def escuchar() -> str:
 
     log.debug("🎤 Te escucho...")
 
-    # --- Fase 1: Detección de voz (igual que antes) ---
+    # --- Fase 1: Detección de voz (VAD por umbral de volumen) ---
     bloques_audio = []
     hablando = False
     bloques_silencio = 0
@@ -153,10 +147,9 @@ def escuchar() -> str:
 
     # --- OPTIMIZACIÓN 2: Recortar silencio final ---
     # Sabemos que los últimos bloques_silencio bloques son silencio.
-    # Recortamos todo menos 0.2 seg de cola (un poco de silencio
-    # ayuda a Google a detectar el fin de la frase).
+    # Dejamos 0.2 seg de cola para que Whisper detecte fin de frase.
     muestras_silencio = int(bloques_silencio * CHUNK * SAMPLERATE)
-    muestras_cola = int(0.2 * SAMPLERATE)  # Dejar 0.2 seg.
+    muestras_cola = int(0.2 * SAMPLERATE)
 
     if muestras_silencio > muestras_cola:
         recorte = muestras_silencio - muestras_cola
@@ -164,43 +157,29 @@ def escuchar() -> str:
             audio = audio[:-recorte]
 
     # --- OPTIMIZACIÓN 1: Downsample 44100 → 16000 ---
-    # scipy.signal.resample_poly hace un resampleo eficiente.
-    # Reduce de 44100 a 16000 muestras por segundo.
-    # Esto hace el audio ~2.75x más pequeño.
-    #
-    # La razón 16000/44100 se simplifica a 160/441.
-    # resample_poly(audio, up, down) primero interpola "up" veces
-    # y luego decima "down" veces.
-    audio_16k = scipy.signal.resample_poly(audio, 160, 441)
+    # Whisper requiere 16kHz. resample_poly(audio, 160, 441) hace el
+    # ratio exacto 16000/44100 con un filtro polifase eficiente.
+    audio_16k = scipy.signal.resample_poly(audio, 160, 441).astype(np.float32)
 
-    # Convertir a int16 para el WAV.
-    audio_int16 = (np.clip(audio_16k, -1.0, 1.0) * 32767).astype(np.int16)
-
-    # --- OPTIMIZACIÓN 3: BytesIO en vez de disco ---
-    buffer = io.BytesIO()
-    wav.write(buffer, SAMPLERATE_GOOGLE, audio_int16)
-    buffer.seek(0)
-
-    # --- Reconocimiento con Google Speech ---
-    reconocedor = sr.Recognizer()
-    with sr.AudioFile(buffer) as fuente:
-        audio_sr = reconocedor.record(fuente)
-
+    # --- OPTIMIZACIÓN 3: Transcribir con Whisper local ---
+    t0 = time.time()
     try:
-        texto = reconocedor.recognize_google(audio_sr, language="es-ES")
-        return texto.lower()
-    except sr.UnknownValueError:
+        texto = whisper_stt.transcribir(audio_16k)
+    except Exception as error:
+        log.warning("Whisper falló: %s", error)
         return ""
-    except sr.RequestError:
-        log.warning("Sin conexión a internet (Google Speech).")
-        return ""
+    t_stt = time.time() - t0
+    log.debug("⏱️ stt: %.2fs", t_stt)
+
+    return texto
 
 
 # --- Prueba directa ---
 if __name__ == "__main__":
+    whisper_stt.precarga()
     calibrar_una_vez()
 
-    print("=== Prueba de escucha optimizada ===\n")
+    print("=== Prueba de escucha local con Whisper ===\n")
 
     inicio = time.time()
     resultado = escuchar()
