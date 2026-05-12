@@ -72,9 +72,9 @@ MIC_WARMUP_SECONDS      = _env("MIC_WARMUP_SECONDS", 0.6, float)
 # ESCUCHA
 # ============================================================
 MIC_UMBRAL              = _env("MIC_UMBRAL", 0.008, float)
-ESCUCHA_SILENCIO_CORTE  = _env("ESCUCHA_SILENCIO_CORTE", 1.5, float)
+ESCUCHA_SILENCIO_CORTE  = _env("ESCUCHA_SILENCIO_CORTE", 0.8, float)
 ESCUCHA_ESPERA_MAXIMA   = _env("ESCUCHA_ESPERA_MAXIMA", 8.0, float)
-ESCUCHA_DURACION_MAXIMA = _env("ESCUCHA_DURACION_MAXIMA", 15.0, float)
+ESCUCHA_DURACION_MAXIMA = _env("ESCUCHA_DURACION_MAXIMA", 6.0, float)
 ESCUCHA_CHUNK           = _env("ESCUCHA_CHUNK", 0.3, float)
 
 # ============================================================
@@ -85,14 +85,6 @@ WHISPER_DEVICE          = _env("WHISPER_DEVICE", "cuda")
 WHISPER_COMPUTE_TYPE    = _env("WHISPER_COMPUTE_TYPE", "int8_float16")
 WHISPER_IDIOMA          = _env("WHISPER_IDIOMA", "es")
 WHISPER_BEAM_SIZE       = _env("WHISPER_BEAM_SIZE", 1, int)
-
-# ============================================================
-# VAD (Silero — detección de fin de habla)
-# ============================================================
-VAD_TIMEOUT_INICIO      = _env("VAD_TIMEOUT_INICIO", 8.0, float)
-VAD_MIN_SILENCE_MS      = _env("VAD_MIN_SILENCE_MS", 300, int)
-VAD_THRESHOLD           = _env("VAD_THRESHOLD", 0.5, float)
-VAD_SPEECH_PAD_MS       = _env("VAD_SPEECH_PAD_MS", 100, int)
 
 # ============================================================
 # WAKE WORD
@@ -114,3 +106,9 @@ TTS_BUFFER_ORACIONES    = _env("TTS_BUFFER_ORACIONES", 2, int)
 # RUTINAS
 # ============================================================
 CIUDAD_CLIMA            = _env("CIUDAD_CLIMA", "Cajamarca")
+
+# ============================================================
+# MODELOS OLLAMA
+# ============================================================
+MODELO_PCN = _env("MODELO_PCN", "eli-fast", str)
+MODELO_PCV = _env("MODELO_PCV", "qwen2.5:3b", str)

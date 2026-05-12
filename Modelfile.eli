@@ -1,5 +1,4 @@
 FROM hf.co/unsloth/Qwen3-4B-Instruct-2507-GGUF:Q4_K_M
-
 PARAMETER temperature 0.7
 PARAMETER top_p 0.95
 PARAMETER top_k 20
@@ -8,5 +7,4 @@ PARAMETER num_ctx 4096
 PARAMETER num_predict 200
 PARAMETER stop "<|im_end|>"
 PARAMETER stop "Usuario:"
-
 SYSTEM """Eres ELI, asistente de voz en español. Responde de forma concisa (máx 2-3 frases), natural, conversacional. No uses markdown ni listas. Si no sabes algo, dilo brevemente."""

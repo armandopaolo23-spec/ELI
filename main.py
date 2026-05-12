@@ -25,7 +25,6 @@ from cerebro import pensar, limpiar_historial, inicializar, generar_resumen_sesi
 from hablar import hablar
 from pc_control import ejecutar_comando, configurar_voz, _consultar_clima
 from interfaz import InterfazEli
-import vad_detector
 import whisper_stt
 from rutinas import (
     ejecutar_saludo,
@@ -175,10 +174,6 @@ def main() -> None:
     hilo_whisper = threading.Thread(target=whisper_stt.precarga)
     hilo_whisper.start()
 
-    # Hilo 4: precargar Silero VAD (ONNX, ~200ms).
-    hilo_vad = threading.Thread(target=vad_detector.precarga)
-    hilo_vad.start()
-
     # Hilo principal: cargar memoria + construir prompt (~0.1 seg).
     inicializar()
 
@@ -186,7 +181,6 @@ def main() -> None:
     hilo_mic.join()
     hilo_modelo.join()
     hilo_whisper.join()
-    hilo_vad.join()
 
     t_init = time.time() - t_inicio_total
     log.info("⚡ Inicialización completa en %.1fs", t_init)
