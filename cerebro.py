@@ -22,7 +22,7 @@ import threading
 import time
 
 import config as cfg
-from logger import get_logger
+from logger import get_logger, timing_decorator
 from memoria import (
     cargar_memoria,
     guardar_memoria,
@@ -324,6 +324,7 @@ def inicializar() -> None:
 # PENSAR (con streaming)
 # ============================================================
 
+@timing_decorator
 def pensar(
     texto: str,
     hablar_anticipado: Callable[[str], threading.Thread | None] | None = None,
