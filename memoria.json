@@ -1,7 +1,8 @@
 {
   "perfil": {
     "horarios": "mañana",
-    "nombre": "eli"
+    "nombre": "eli",
+    "frase": "Buenos días, tarde hermosa, que el sol te dé un abrazo cálido y tu día una sonrisa sencilla."
   },
   "resumenes": [
     {
@@ -39,6 +40,10 @@
     {
       "fecha": "2026-05-12 17:56",
       "contenido": "El usuario pidió una frase de buenos días con personalidad, pero el sistema responde desde un enfoque técnico, enfatizando estabilidad de datos y limitaciones de funciones como suscribirse o acceder a servicios. Se tocan temas de emociones, acciones de navegación y límites del sistema en términos de autenticación y medición."
+    },
+    {
+      "fecha": "2026-05-12 18:25",
+      "contenido": "El usuario pidió una frase de buenos días para empezar la tarde con un toque personal, pero luego solicitó comandos para abrir Google y el navegador, y preguntó por la hora, mostrando interés en acciones prácticas y tiempo real. Se tocó el tema de la personalidad del asistente y la interpretación de comandos, con datos personales implícitos como la hora y el entorno de uso."
     }
   ]
 }

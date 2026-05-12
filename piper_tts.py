@@ -65,27 +65,30 @@ def precarga() -> None:
 
 def sintetizar(texto: str) -> tuple[np.ndarray, int] | None:
     """Sintetiza texto a audio PCM int16.
-
+    
     Args:
         texto: texto a sintetizar.
-
     Retorna:
         ``(np.ndarray int16, sample_rate)`` o ``None`` si no se generó
         audio (texto vacío, etc.).
     """
     if _voz is None:
         precarga()
-
-    speaker = cfg.PIPER_SPEAKER if cfg.PIPER_SPEAKER >= 0 else None
-    length_scale = 1.0 / cfg.PIPER_SPEED if cfg.PIPER_SPEED > 0 else 1.0
-
-    audio_bytes = b"".join(_voz.synthesize_stream_raw(
-        texto,
-        speaker_id=speaker,
-        length_scale=length_scale,
-    ))
-    if not audio_bytes:
+    
+    if not texto.strip():
         return None
+    
+    # synthesize() retorna Iterable[AudioChunk]
+    # Cada AudioChunk tiene .audio (numpy array)
+    chunks = []
+    for chunk in _voz.synthesize(texto):
+        chunks.append(chunk.audio_int16_array)
+    
+    if not chunks:
+        return None
+    
+    # Concatenar todos los chunks
+    audio_array = np.concatenate(chunks)
+    
+    return audio_array, _voz.config.sample_rate
 
-    audio = np.frombuffer(audio_bytes, dtype=np.int16)
-    return audio, _voz.config.sample_rate
