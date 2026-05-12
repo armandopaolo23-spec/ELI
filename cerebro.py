@@ -6,7 +6,7 @@
 #
 # PRECARGA: petición dummy al inicio para calentar el modelo en GPU.
 #
-# DISTRIBUIDO: dos nodos Ollama. PCN (local, qwen3:8b) para
+# DISTRIBUIDO: dos nodos Ollama. PCN (local, eli-fast) para
 #   consultas complejas y PCV (remoto, qwen2.5:3b) como fallback
 #   24/7. Si PCN falla, el gestor conmuta a PCV automáticamente
 #   y verifica en background cada 60s si PCN volvió.
@@ -43,14 +43,14 @@ NODOS = [
         "url_chat":     "http://127.0.0.1:11434/api/chat",
         "url_generate": "http://127.0.0.1:11434/api/generate",
         "url_tags":     "http://127.0.0.1:11434/api/tags",
-        "modelo":       "qwen3:8b",
+        "modelo":       cfg.MODELO_PCN,
     },
     {
         "nombre": "PCV",
         "url_chat":     "http://192.168.100.30:11434/api/chat",
         "url_generate": "http://192.168.100.30:11434/api/generate",
         "url_tags":     "http://192.168.100.30:11434/api/tags",
-        "modelo":       "qwen2.5:3b",
+        "modelo":       cfg.MODELO_PCV,
     },
 ]
 
