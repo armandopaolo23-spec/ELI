@@ -78,6 +78,15 @@ ESCUCHA_DURACION_MAXIMA = _env("ESCUCHA_DURACION_MAXIMA", 15.0, float)
 ESCUCHA_CHUNK           = _env("ESCUCHA_CHUNK", 0.3, float)
 
 # ============================================================
+# WHISPER (STT local)
+# ============================================================
+WHISPER_MODELO          = _env("WHISPER_MODELO", "small")
+WHISPER_DEVICE          = _env("WHISPER_DEVICE", "cuda")
+WHISPER_COMPUTE_TYPE    = _env("WHISPER_COMPUTE_TYPE", "int8_float16")
+WHISPER_IDIOMA          = _env("WHISPER_IDIOMA", "es")
+WHISPER_BEAM_SIZE       = _env("WHISPER_BEAM_SIZE", 1, int)
+
+# ============================================================
 # WAKE WORD
 # ============================================================
 WAKE_UMBRAL             = _env("WAKE_UMBRAL", 0.005, float)

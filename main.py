@@ -25,6 +25,7 @@ from cerebro import pensar, limpiar_historial, inicializar, generar_resumen_sesi
 from hablar import hablar
 from pc_control import ejecutar_comando, configurar_voz, _consultar_clima
 from interfaz import InterfazEli
+import whisper_stt
 from rutinas import (
     ejecutar_saludo,
     ejecutar_rutina,
@@ -165,9 +166,13 @@ def main() -> None:
     hilo_mic = threading.Thread(target=calibrar_una_vez)
     hilo_mic.start()
 
-    # Hilo 2: precargar modelo en GPU (~3-5 seg).
+    # Hilo 2: precargar modelo Ollama en GPU (~3-5 seg).
     hilo_modelo = threading.Thread(target=precarga_modelo)
     hilo_modelo.start()
+
+    # Hilo 3: precargar Whisper en GPU (~3-5 seg, depende del tamaño).
+    hilo_whisper = threading.Thread(target=whisper_stt.precarga)
+    hilo_whisper.start()
 
     # Hilo principal: cargar memoria + construir prompt (~0.1 seg).
     inicializar()
@@ -175,6 +180,7 @@ def main() -> None:
     # Esperar a que los hilos terminen.
     hilo_mic.join()
     hilo_modelo.join()
+    hilo_whisper.join()
 
     t_init = time.time() - t_inicio_total
     log.info("⚡ Inicialización completa en %.1fs", t_init)
