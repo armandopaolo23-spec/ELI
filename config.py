@@ -18,6 +18,7 @@ se loguea un warning y se usa el default.
 from __future__ import annotations
 
 import os
+from pathlib import Path
 from typing import Any
 
 from logger import get_logger
@@ -87,6 +88,14 @@ WHISPER_IDIOMA          = _env("WHISPER_IDIOMA", "es")
 WHISPER_BEAM_SIZE       = _env("WHISPER_BEAM_SIZE", 1, int)
 
 # ============================================================
+# VAD (Silero — detección de fin de habla)
+# ============================================================
+VAD_TIMEOUT_INICIO      = _env("VAD_TIMEOUT_INICIO", 8.0, float)
+VAD_MIN_SILENCE_MS      = _env("VAD_MIN_SILENCE_MS", 300, int)
+VAD_THRESHOLD           = _env("VAD_THRESHOLD", 0.5, float)
+VAD_SPEECH_PAD_MS       = _env("VAD_SPEECH_PAD_MS", 100, int)
+
+# ============================================================
 # WAKE WORD
 # ============================================================
 WAKE_UMBRAL             = _env("WAKE_UMBRAL", 0.005, float)
@@ -96,33 +105,23 @@ WAKE_MAX_PALABRAS       = _env("WAKE_MAX_PALABRAS", 4, int)
 WAKE_MAX_DISTANCIA      = _env("WAKE_MAX_DISTANCIA", 1, int)
 
 # ============================================================
-# TTS / HABLAR
+# TTS / HABLAR (Piper local)
 # ============================================================
+# VOZ se mantiene por compat con código que aún lo lea (rutinas, etc.).
+# Piper ignora este valor; usa PIPER_MODELO_PATH para escoger voz.
 VOZ                     = _env("VOZ", "es-MX-DaliaNeural")
 TTS_MIN_FRAGMENTO       = _env("TTS_MIN_FRAGMENTO", 15, int)
 TTS_BUFFER_ORACIONES    = _env("TTS_BUFFER_ORACIONES", 2, int)
+
+_PIPER_DEFAULT = str(
+    Path(__file__).resolve().parent
+    / "models" / "piper" / "es_MX-claude-high.onnx"
+)
+PIPER_MODELO_PATH       = _env("PIPER_MODELO_PATH", _PIPER_DEFAULT)
+PIPER_SPEAKER           = _env("PIPER_SPEAKER", -1, int)   # -1 = sin override
+PIPER_SPEED             = _env("PIPER_SPEED", 1.0, float)  # 1.0 = velocidad nativa
 
 # ============================================================
 # RUTINAS
 # ============================================================
 CIUDAD_CLIMA            = _env("CIUDAD_CLIMA", "Cajamarca")
-
-# ============================================================
-# MODELOS OLLAMA
-# ============================================================
-MODELO_PCN = _env("MODELO_PCN", "eli-fast", str)
-MODELO_PCV = _env("MODELO_PCV", "qwen2.5:3b", str)
-
-# ============================================================
-# MODELOS OLLAMA
-# ============================================================
-MODELO_PCN = _env("MODELO_PCN", "eli-fast", str)
-MODELO_PCV = _env("MODELO_PCV", "qwen2.5:3b", str)
-
-# ============================================================
-# SILERO VAD (Voice Activity Detection)
-# ============================================================
-VAD_TIMEOUT_INICIO = _env("VAD_TIMEOUT_INICIO", 8.0, float)
-VAD_MIN_SILENCE_MS = _env("VAD_MIN_SILENCE_MS", 300, int)
-VAD_THRESHOLD = _env("VAD_THRESHOLD", 0.5, float)
-VAD_SPEECH_PAD_MS = _env("VAD_SPEECH_PAD_MS", 100, int)

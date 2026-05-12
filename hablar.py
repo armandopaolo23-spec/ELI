@@ -1,41 +1,32 @@
 # ============================================================
-# hablar.py — Voz de Eli con pipeline por oraciones
+# hablar.py — Voz de Eli con pipeline por oraciones (Piper local)
 #
-# ANTES: edge-tts genera todo el MP3 → decodifica → reproduce.
-#   Para una respuesta de 3 oraciones, el usuario espera que se
-#   sintetice todo el texto antes de oír la primera palabra.
+# ANTES: edge-tts contra Microsoft Azure. ~500-1000ms por oración
+#   solo por el roundtrip de red. Requería internet.
 #
-# AHORA: dividimos por oraciones y solapamos síntesis con playback.
-#   Mientras se reproduce la oración N, un hilo productor ya está
-#   sintetizando la oración N+1 contra el servidor de Microsoft.
+# AHORA: Piper ONNX local. ~80-150ms por oración corta, sin red.
 #
-# Ganancia:
-#   - Time-to-first-audio: ~0.3s en vez de ~0.6s (síntesis de
-#     una oración corta vs texto completo).
-#   - Latencia total: −0.3 a −0.8s en respuestas multi-oración,
-#     porque el roundtrip de red de la oración N+1 se solapa
-#     con el playback de la N.
+# Pipeline por oraciones: mientras se reproduce la oración N, un hilo
+# productor ya está sintetizando la oración N+1. Con Piper local la
+# ganancia por pipelining es menor (la síntesis ya es <150ms), pero
+# sigue ayudando en respuestas largas y mantiene compat con el caller.
 # ============================================================
 
 from __future__ import annotations
 
-import asyncio
-import io
 import queue
 import re
 import threading
 from typing import Any
 
-import edge_tts
 import sounddevice as sd
-import soundfile as sf
 
 import config as cfg
+import piper_tts
 from logger import get_logger
 
 log = get_logger(__name__)
 
-VOZ = cfg.VOZ
 _MIN_LARGO_FRAGMENTO = cfg.TTS_MIN_FRAGMENTO
 _BUFFER_ORACIONES = cfg.TTS_BUFFER_ORACIONES
 
@@ -58,16 +49,13 @@ def hablar(texto: str) -> None:
 
     # Una sola oración: ruta simple, sin overhead de hilo+cola.
     if len(oraciones) == 1:
-        try:
-            asyncio.run(_reproducir_una(oraciones[0]))
-        except Exception:
-            log.warning("TTS falló para texto de %d caracteres", len(texto), exc_info=True)
+        _reproducir_una(oraciones[0])
         return
 
     # Pipeline multi-oración.
-    cola = queue.Queue(maxsize=_BUFFER_ORACIONES)
+    cola: queue.Queue = queue.Queue(maxsize=_BUFFER_ORACIONES)
     hilo = threading.Thread(
-        target=_correr_productor, args=(oraciones, cola), daemon=True
+        target=_productor, args=(oraciones, cola), daemon=True
     )
     hilo.start()
 
@@ -108,30 +96,26 @@ def _dividir_oraciones(texto: str) -> list[str]:
     return fusionadas
 
 
-def _correr_productor(oraciones: list[str], cola: queue.Queue) -> None:
-    """Wrapper que lanza el productor async y captura excepciones."""
+def _productor(oraciones: list[str], cola: queue.Queue) -> None:
+    """Sintetiza cada oración y la pone en la cola en orden."""
     try:
-        asyncio.run(_productor(oraciones, cola))
+        for oracion in oraciones:
+            audio = _sintetizar(oracion)
+            if audio is not None:
+                cola.put(audio)
     except Exception as error:
         log.warning("Productor TTS falló: %s", error, exc_info=True)
-        try:
-            cola.put_nowait(_FIN_AUDIO)
-        except queue.Full:
-            pass
+    finally:
+        cola.put(_FIN_AUDIO)
 
 
-async def _productor(oraciones: list[str], cola: queue.Queue) -> None:
-    """Sintetiza cada oración y la pone en la cola en orden."""
-    for oracion in oraciones:
-        audio = await _sintetizar(oracion)
-        if audio is not None:
-            cola.put(audio)
-    cola.put(_FIN_AUDIO)
-
-
-async def _reproducir_una(texto: str) -> None:
+def _reproducir_una(texto: str) -> None:
     """Camino sin pipeline: una sola oración."""
-    audio = await _sintetizar(texto)
+    try:
+        audio = _sintetizar(texto)
+    except Exception:
+        log.warning("TTS falló para texto de %d caracteres", len(texto), exc_info=True)
+        return
     if audio is None:
         return
     datos, frecuencia = audio
@@ -139,32 +123,20 @@ async def _reproducir_una(texto: str) -> None:
     sd.wait()
 
 
-async def _sintetizar(texto: str) -> tuple[Any, int] | None:
-    """Genera audio MP3 con edge-tts y lo decodifica a numpy.
+def _sintetizar(texto: str) -> tuple[Any, int] | None:
+    """Sintetiza una oración con Piper local.
 
     Retorna ``(datos, frecuencia)`` o ``None`` si no se generó audio.
-    El primer elemento es ``np.ndarray``; lo dejamos como ``Any`` para
-    no atar este módulo a numpy en su firma.
     """
-    buffer = io.BytesIO()
-    comunicador = edge_tts.Communicate(texto, VOZ)
-    async for chunk in comunicador.stream():
-        if chunk["type"] == "audio":
-            buffer.write(chunk["data"])
-
-    if buffer.tell() == 0:
-        return None
-
-    buffer.seek(0)
-    datos, frecuencia = sf.read(buffer)
-    return datos, frecuencia
+    return piper_tts.sintetizar(texto)
 
 
 # --- Prueba directa ---
 if __name__ == "__main__":
     import time
 
-    print("=== Prueba del pipeline por oraciones ===\n")
+    piper_tts.precarga()
+    print("=== Prueba del pipeline con Piper local ===\n")
 
     inicio = time.time()
     hablar("Sistemas en línea. Listo para ayudarte. Los parámetros son aceptables.")

@@ -26,10 +26,13 @@ _DEPS_STUB = (
     "sounddevice",
     "soundfile",
     "edge_tts",
+    "piper",
+    "piper.voice",
     "pyautogui",
     "psutil",
     "speech_recognition",
     "faster_whisper",
+    "silero_vad",
     # Deps de integraciones (sólo necesarias para que comandos/ importe
     # sin explotar; los handlers nunca se llaman en tests).
     "spotipy",
