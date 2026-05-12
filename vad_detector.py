@@ -30,7 +30,7 @@ import numpy as np
 import sounddevice as sd
 
 import config as cfg
-from logger import get_logger
+from logger import get_logger, timing_decorator
 
 log = get_logger(__name__)
 
@@ -103,6 +103,7 @@ def calibrar_stream() -> None:
     log.info("✅ Micrófono listo.")
 
 
+@timing_decorator
 def detectar_audio() -> np.ndarray | None:
     """Captura audio hasta que Silero VAD detecte fin de habla.
 

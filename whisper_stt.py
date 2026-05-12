@@ -26,7 +26,7 @@ from typing import Any
 import numpy as np
 
 import config as cfg
-from logger import get_logger
+from logger import get_logger, timing_decorator
 
 log = get_logger(__name__)
 
@@ -67,6 +67,7 @@ def precarga() -> None:
         log.info("✅ Whisper listo.")
 
 
+@timing_decorator
 def transcribir(audio_float32_16khz: np.ndarray) -> str:
     """Transcribe audio a texto con Whisper.
 

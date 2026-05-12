@@ -17,7 +17,7 @@ import time
 
 import vad_detector
 import whisper_stt
-from logger import get_logger
+from logger import get_logger, timing_decorator
 
 log = get_logger(__name__)
 
@@ -32,6 +32,7 @@ def calibrar_una_vez() -> None:
     vad_detector.calibrar_stream()
 
 
+@timing_decorator
 def escuchar() -> str:
     """Escucha al usuario y transcribe con Whisper.
 

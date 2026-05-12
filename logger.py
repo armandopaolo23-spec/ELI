@@ -16,10 +16,14 @@ Configuración:
 
 from __future__ import annotations
 
+import collections
+import functools
 import logging
 import logging.handlers
 import os
+import statistics
 import sys
+import time
 from pathlib import Path
 
 _LOG_DIR = Path(__file__).parent / "logs"
@@ -75,3 +79,29 @@ def get_logger(nombre: str) -> logging.Logger:
     elif not nombre.startswith("eli"):
         nombre = f"eli.{nombre}"
     return logging.getLogger(nombre)
+
+
+def timing_decorator(func):
+    """Mide latencia de la función y loguea percentiles p50/p95/p99 a DEBUG."""
+    historial: collections.deque = collections.deque(maxlen=100)
+    _log = get_logger("timing")
+
+    @functools.wraps(func)
+    def wrapper(*args, **kwargs):
+        t0 = time.perf_counter()
+        resultado = func(*args, **kwargs)
+        historial.append((time.perf_counter() - t0) * 1000)
+        if len(historial) >= 2:
+            data = sorted(historial)
+            n = len(data)
+            p50 = statistics.median(data)
+            p95 = data[min(int(n * 0.95), n - 1)]
+            p99 = data[min(int(n * 0.99), n - 1)]
+            _log.debug(
+                "⏱️ [%s] p50: %.0fms p95: %.0fms p99: %.0fms (n=%d)",
+                func.__name__, p50, p95, p99, n,
+            )
+        return resultado
+
+    wrapper._historial = historial
+    return wrapper
