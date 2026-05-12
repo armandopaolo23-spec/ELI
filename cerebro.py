@@ -43,7 +43,7 @@ NODOS = [
         "url_chat":     "http://127.0.0.1:11434/api/chat",
         "url_generate": "http://127.0.0.1:11434/api/generate",
         "url_tags":     "http://127.0.0.1:11434/api/tags",
-        "modelo":       "qwen3:8b",
+        "modelo":       cfg.MODELO_PCN,
     },
     {
         "nombre": "PCV",

@@ -104,3 +104,9 @@ TTS_BUFFER_ORACIONES    = _env("TTS_BUFFER_ORACIONES", 2, int)
 # RUTINAS
 # ============================================================
 CIUDAD_CLIMA            = _env("CIUDAD_CLIMA", "Cajamarca")
+
+# ============================================================
+# MODELOS OLLAMA
+# ============================================================
+MODELO_PCN = _env("MODELO_PCN", "eli-fast", str)
+MODELO_PCV = _env("MODELO_PCV", "qwen2.5:3b", str)
