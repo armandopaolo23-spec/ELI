@@ -2,6 +2,7 @@
 
 import threading
 from unittest.mock import MagicMock, patch
+import numpy as np
 import pytest
 
 import whisper_stt
@@ -52,24 +53,30 @@ class TestPipelineSTT:
 
 class TestPipelineTTS:
     def test_sintetiza_y_retorna_audio(self):
+        chunk = MagicMock()
+        chunk.audio_int16_array = np.array([0, 1, 2, 3], dtype=np.int16)
+        
         voz = MagicMock()
         voz.config.sample_rate = 22050
-        voz.synthesize_stream_raw.return_value = iter([b"\x00\x01\x02\x03"])
+        voz.synthesize.return_value = iter([chunk])
         piper_tts._voz = voz
         result = piper_tts.sintetizar("texto de prueba")
         assert result is not None
 
     def test_texto_vacio_retorna_none(self):
         voz = MagicMock()
-        voz.synthesize_stream_raw.return_value = iter([])
+        voz.synthesize.return_value = iter([])
         piper_tts._voz = voz
         assert piper_tts.sintetizar("") is None
 
     def test_sample_rate_correcto_para_cada_modelo(self):
         for sr in [16000, 22050, 44100]:
+            chunk = MagicMock()
+            chunk.audio_int16_array = np.array([1], dtype=np.int16)
+            
             voz = MagicMock()
             voz.config.sample_rate = sr
-            voz.synthesize_stream_raw.return_value = iter([b"\x01"])
+            voz.synthesize.return_value = iter([chunk])
             piper_tts._voz = voz
             _, tasa = piper_tts.sintetizar("test")
             assert tasa == sr

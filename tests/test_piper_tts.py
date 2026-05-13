@@ -1,6 +1,7 @@
 """Tests para piper_tts — TTS local con Piper ONNX."""
 
 from unittest.mock import MagicMock, patch
+import numpy as np
 import pytest
 import piper_tts
 
@@ -15,7 +16,12 @@ def reset_singleton():
 def _make_mock_voz(sample_rate=22050, audio=b"\x00\x01"):
     voz = MagicMock()
     voz.config.sample_rate = sample_rate
-    voz.synthesize_stream_raw.return_value = iter([audio])
+    
+    # Mock AudioChunk con audio_int16_array
+    chunk = MagicMock()
+    chunk.audio_int16_array = np.frombuffer(audio, dtype=np.int16)
+    
+    voz.synthesize.return_value = iter([chunk])
     return voz
 
 
@@ -33,9 +39,9 @@ class TestPrecarga:
         assert piper_tts._voz is original
 
     def test_lanza_si_modelo_no_existe(self):
-        with pytest.raises(FileNotFoundError):
-            piper_tts.precarga()
-
+        with patch("config.PIPER_MODELO_PATH", "/path/que/no/existe.onnx"):
+            with pytest.raises(FileNotFoundError):
+                piper_tts.precarga()
 
 class TestSintetizar:
     def test_texto_vacio_retorna_none(self):
@@ -70,6 +76,6 @@ class TestSintetizar:
         import config as cfg
         piper_tts._voz = _make_mock_voz()
         piper_tts.sintetizar("hola")
-        _, kwargs = piper_tts._voz.synthesize_stream_raw.call_args
+        _, kwargs = piper_tts._voz.synthesize.call_args
         expected = 1.0 / cfg.PIPER_SPEED if cfg.PIPER_SPEED > 0 else 1.0
         assert abs(kwargs["length_scale"] - expected) < 1e-9

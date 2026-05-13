@@ -79,10 +79,14 @@ def sintetizar(texto: str) -> tuple[np.ndarray, int] | None:
     if not texto.strip():
         return None
     
+    # Calcular parámetros de síntesis
+    speaker = cfg.PIPER_SPEAKER if cfg.PIPER_SPEAKER is not None else 0
+    length_scale = 1.0 / cfg.PIPER_SPEED if cfg.PIPER_SPEED > 0 else 1.0
+    
     # synthesize() retorna Iterable[AudioChunk]
     # Cada AudioChunk tiene .audio (numpy array)
     chunks = []
-    for chunk in _voz.synthesize(texto):
+    for chunk in _voz.synthesize(texto, speaker_id=speaker, length_scale=length_scale):
         chunks.append(chunk.audio_int16_array)
     
     if not chunks:

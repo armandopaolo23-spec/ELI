@@ -44,6 +44,10 @@
     {
       "fecha": "2026-05-12 18:25",
       "contenido": "El usuario pidió una frase de buenos días para empezar la tarde con un toque personal, pero luego solicitó comandos para abrir Google y el navegador, y preguntó por la hora, mostrando interés en acciones prácticas y tiempo real. Se tocó el tema de la personalidad del asistente y la interpretación de comandos, con datos personales implícitos como la hora y el entorno de uso."
+    },
+    {
+      "fecha": "2026-05-12 18:30",
+      "contenido": "El usuario pidió varias acciones, como abrir Spotify, buscar videos de gatos en YouTube y expresar emociones, pero el sistema solo responde con comandos o mensajes técnicos, sin reconocer emociones o sesiones de cierre. Se tocaron temas como navegación de plataformas (Spotify, YouTube), interacciones emocionales y gestión de sesiones. Los datos personales no se registran, y el sistema mantiene un enfoque técnico y neutral en todo momento."
     }
   ]
 }
