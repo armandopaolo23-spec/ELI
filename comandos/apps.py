@@ -83,6 +83,20 @@ def _abrir_powerpoint(params: dict[str, Any]) -> str:
     )
 
 
+def _abrir_terminal(params: dict[str, Any]) -> str:
+    return _abrir_app_simple(
+        "terminal", "Abriendo la terminal.",
+        "No encontré una terminal instalada.",
+    )
+
+
+def _abrir_vscode(params: dict[str, Any]) -> str:
+    return _abrir_app_simple(
+        "vscode", "Abriendo Visual Studio Code.",
+        "No encontré Visual Studio Code instalado.",
+    )
+
+
 def _calculadora_cientifica(params: dict[str, Any]) -> str:
     """Abre la calculadora; en Windows manda Alt+2 para modo científico.
 
@@ -108,4 +122,6 @@ DISPATCH: dict[str, Any] = {
     "abrir_excel":            _abrir_excel,
     "abrir_powerpoint":       _abrir_powerpoint,
     "calculadora_cientifica": _calculadora_cientifica,
+    "abrir_terminal":         _abrir_terminal,
+    "abrir_vscode":           _abrir_vscode,
 }

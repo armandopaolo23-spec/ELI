@@ -130,6 +130,14 @@ _APPS = {
         "windows": ["start", "chrome"],
         "linux":   [["google-chrome"], ["chromium-browser"], ["chromium"], ["flatpak", "run", "com.google.Chrome"]],
     },
+    "terminal": {
+        "windows": ["start", "cmd"],
+        "linux":   [["gnome-terminal"], ["xterm"], ["xfce4-terminal"], ["konsole"]],
+    },
+    "vscode": {
+        "windows": ["start", "code"],
+        "linux":   [["code"], ["code-insiders"], ["codium"]],
+    },
     "notepad": {
         "windows": ["notepad"],
         "linux":   [["gedit"], ["gnome-text-editor"], ["kate"], ["xdg-open", "/dev/null"]],
@@ -329,6 +337,34 @@ def vaciar_papelera() -> bool:
             log.warning("vaciar_papelera falló: %s", error)
             return False
     return False
+
+
+def controlar_ventana_activa(accion: str) -> bool:
+    """Controla la ventana activa usando wmctrl.
+
+    accion: 'minimizar' | 'maximizar' | 'cerrar'
+    Retorna True si el comando se lanzó, False si wmctrl no está disponible.
+    """
+    if not IS_LINUX:
+        return False
+    if not shutil.which("wmctrl"):
+        log.warning("controlar_ventana_activa: wmctrl no encontrado en PATH")
+        return False
+    cmds = {
+        "minimizar": ["wmctrl", "-r", ":ACTIVE:", "-b", "add,hidden"],
+        "maximizar": ["wmctrl", "-r", ":ACTIVE:", "-b", "add,maximized_vert,maximized_horz"],
+        "cerrar":    ["wmctrl", "-c", ":ACTIVE:"],
+    }
+    cmd = cmds.get(accion)
+    if cmd is None:
+        log.warning("controlar_ventana_activa: acción desconocida '%s'", accion)
+        return False
+    try:
+        subprocess.Popen(cmd)
+        return True
+    except (FileNotFoundError, OSError) as error:
+        log.warning("controlar_ventana_activa('%s') falló: %s", accion, error)
+        return False
 
 
 def modo_oscuro_toggle() -> str | None:

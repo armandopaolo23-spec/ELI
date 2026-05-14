@@ -104,16 +104,41 @@ def _bateria(params: dict[str, Any]) -> str:
     return f"La batería está al {porcentaje}%{cargando}."
 
 
+# ============================================================
+# VENTANAS
+# ============================================================
+
+def _minimizar_ventana(params: dict[str, Any]) -> str:
+    if os_compat.controlar_ventana_activa("minimizar"):
+        return "Ventana minimizada."
+    return "No pude minimizar la ventana. Asegúrate de tener wmctrl instalado."
+
+
+def _maximizar_ventana(params: dict[str, Any]) -> str:
+    if os_compat.controlar_ventana_activa("maximizar"):
+        return "Ventana maximizada."
+    return "No pude maximizar la ventana. Asegúrate de tener wmctrl instalado."
+
+
+def _cerrar_ventana(params: dict[str, Any]) -> str:
+    if os_compat.controlar_ventana_activa("cerrar"):
+        return "Ventana cerrada."
+    return "No pude cerrar la ventana. Asegúrate de tener wmctrl instalado."
+
+
 DISPATCH: dict[str, Any] = {
-    "subir_volumen":     _subir_volumen,
-    "bajar_volumen":     _bajar_volumen,
-    "silenciar":         _silenciar,
+    "subir_volumen":      _subir_volumen,
+    "bajar_volumen":      _bajar_volumen,
+    "silenciar":          _silenciar,
     "volumen_especifico": _volumen_especifico,
-    "captura_pantalla":  _captura_pantalla,
-    "bloquear_pantalla": _bloquear_pantalla,
-    "apagar_pc":         _apagar_pc,
-    "cancelar_apagado":  _cancelar_apagado,
-    "vaciar_papelera":   _vaciar_papelera,
-    "modo_oscuro":       _modo_oscuro,
-    "bateria":           _bateria,
+    "captura_pantalla":   _captura_pantalla,
+    "bloquear_pantalla":  _bloquear_pantalla,
+    "apagar_pc":          _apagar_pc,
+    "cancelar_apagado":   _cancelar_apagado,
+    "vaciar_papelera":    _vaciar_papelera,
+    "modo_oscuro":        _modo_oscuro,
+    "bateria":            _bateria,
+    "minimizar_ventana":  _minimizar_ventana,
+    "maximizar_ventana":  _maximizar_ventana,
+    "cerrar_ventana":     _cerrar_ventana,
 }
