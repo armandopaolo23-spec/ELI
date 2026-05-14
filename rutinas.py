@@ -45,74 +45,16 @@ def ejecutar_saludo(
     pensar_fn: Callable[..., list[dict[str, Any]]],
     clima_fn: Callable[[dict[str, Any]], str],
 ) -> None:
-    """
-    Saludo inteligente al iniciar Eli.
+    """Saludo minimalista al iniciar Eli.
 
-    Ejecuta una secuencia de:
-    1. Saludo según la hora (buenos días/tardes/noches)
-    2. Dice la hora actual
-    3. Consulta y dice el clima de Cajamarca
-    4. Pide a Ollama una frase motivacional corta con personalidad
+    Emite un mensaje corto y directo estilo Agnes Tachyon.
 
     Args:
         hablar_fn: Función hablar() de Eli.
-        pensar_fn: Función pensar() de cerebro.py.
-        clima_fn: Función _consultar_clima() de pc_control.py.
+        pensar_fn: No usado (mantenido por compatibilidad).
+        clima_fn: No usado (mantenido por compatibilidad).
     """
-    ahora = datetime.datetime.now()
-    hora = ahora.hour
-
-    # --- Saludo según la hora ---
-    if 6 <= hora < 12:
-        saludo = "Buenos días"
-        momento = "mañana"
-    elif 12 <= hora < 19:
-        saludo = "Buenas tardes"
-        momento = "tarde"
-    else:
-        saludo = "Buenas noches"
-        momento = "noche"
-
-    hora_texto = ahora.strftime("%I:%M %p")
-
-    # Primera parte: saludo + hora.
-    hablar_fn(f"{saludo}. Son las {hora_texto}.")
-
-    # --- Clima ---
-    try:
-        clima = clima_fn({"ciudad": CIUDAD_CLIMA})
-        if clima and "error" not in clima.lower():
-            hablar_fn(clima)
-    except Exception:
-        pass  # Si falla el clima, no pasa nada.
-
-    # --- Agenda del día ---
-    try:
-        import google_calendar
-        agenda = google_calendar.ver_eventos_hoy()
-        if "no tienes" not in agenda.lower():
-            hablar_fn(agenda)
-    except Exception:
-        pass
-    
-    # --- Frase motivacional con personalidad ---
-    # Le pedimos a Ollama que genere algo corto y con el estilo
-    # de Agnes Tachyon. pensar() retorna una lista, tomamos la respuesta.
-    try:
-        prompt_motivacion = (
-            f"Dame una frase corta de buenos días para empezar la {momento}. "
-            "Una sola oración con tu personalidad. No uses listas."
-        )
-        resultados = pensar_fn(prompt_motivacion)
-
-        # pensar() retorna una lista. Buscamos la respuesta conversacional.
-        for r in resultados:
-            if r.get("comando") == "ninguno" and r.get("respuesta"):
-                hablar_fn(r["respuesta"])
-                break
-    except Exception:
-        # Si Ollama falla, damos un saludo genérico.
-        hablar_fn("Sistemas operativos. Los parámetros del día son aceptables.")
+    hablar_fn("Sistemas operativos. Esperando directivas.")
 
 
 # ============================================================
