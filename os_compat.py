@@ -132,7 +132,7 @@ _APPS = {
     },
     "terminal": {
         "windows": ["start", "cmd"],
-        "linux":   [["gnome-terminal"], ["xterm"], ["xfce4-terminal"], ["konsole"]],
+        "linux":   [["x-terminal-emulator"], ["xterm"], ["xfce4-terminal"], ["konsole"]],
     },
     "vscode": {
         "windows": ["start", "code"],
