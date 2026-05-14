@@ -33,6 +33,10 @@ _DEPS_STUB = (
     "speech_recognition",
     "faster_whisper",
     "silero_vad",
+    # HTTP general
+    "requests",
+    "requests.adapters",
+    "requests.exceptions",
     # Deps de integraciones (sólo necesarias para que comandos/ importe
     # sin explotar; los handlers nunca se llaman en tests).
     "spotipy",
